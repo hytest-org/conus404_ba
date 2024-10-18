@@ -1,0 +1,45 @@
+[
+  {
+    "name": "conus404-ba",
+    "organization": "U.S. Geological Survey",
+    "description": "Utilities to create cloud-optimized datasets from bias-adjusted CONUS404 model output",
+    "version": "0.0.2",
+    "status": "Development",
+
+    "permissions": {
+      "usageType": "openSource",
+      "licenses": [
+        {
+          "name": "Public Domain, CC0-1.0",
+          "URL": "https://raw.githubusercontent.com/hytest-org/conus404-ba/refs/heads/main/LICENSE"
+        }
+      ]
+    },
+
+    "homepageURL": "https://github.com/hytest-org/conus404-ba",
+    "downloadURL": "https://code.usgs.gov/TEAM_NAME/REPOSITORY_NAME/-/archive/RELEASE_VERSION/REPOSITORY_NAME-RELEASE_VERSION.zip",
+    "disclaimerURL": "https://code.usgs.gov/TEAM_NAME/REPOSITORY_NAME/-/raw/RELEASE_VERSION/DISCLAIMER.md",
+    "repositoryURL": "https://github.com/hytest-org/conus404-ba.git",
+    "vcs": "git",
+
+    "laborHours": 0,
+
+    "tags": [
+      "CONUS404",
+      "climate"
+    ],
+
+    "languages": [
+      "Python"
+    ],
+
+    "contact": {
+      "name": "REPOSITORY_ADMINISTRATOR_NAME",
+      "email": "REPOSITORY_ADMINISTRATOR_EMAIL"
+    },
+
+    "date": {
+      "metadataLastUpdated": "2024-10-11"
+    }
+  }
+]
