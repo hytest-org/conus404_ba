@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools>=61"]   # , "setuptools-scm", "numpy"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "conus404-ba"
+description = "Utilities for creating cloud-optimized datasets from the bias-adjusted CONUS404 model output"
+readme = "README.md"
+dynamic = ["version"]
+requires-python = ">=3.10"
+license = {file = "LICENSE"}
+authors = [{name = "Parker Norton", email = "pnorton@usgs.gov"}, ]
+maintainers = [{name = "Parker Norton", email = "pnorton@usgs.gov"}, ]
+keywords = ["CONUS404", "HyTEST"]
+classifiers = ["Development Status :: 3 - Alpha",
+               "Programming Language :: Python :: 3", ]
+
+dependencies = ["cyclopts",
+    "dask",
+    "fsspec",
+    "numcodecs",
+    "numpy",
+    "pandas",
+    "pyproj",
+    "rechunker",
+    "rich",
+    "xarray",
+    "zarr", ]
+
+[project.urls]
+Repository = "https://github.com/hytest-org/conus404-ba.git"
+
+#[project.scripts]
+#convert_params = "pyPRMS.utilities.convert_params:main"
+
+[tool.setuptools]
+include-package-data = false
+zip-safe = false
+
+[tool.setuptools.dynamic]
+version = {attr = "conus404-ba.version.__version__"}
+
+[tool.setuptools.packages.find]
+include = ["conus404-ba", "conus404-ba.*"]
