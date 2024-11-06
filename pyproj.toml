@@ -3,7 +3,7 @@ requires = ["setuptools>=61"]   # , "setuptools-scm", "numpy"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "conus404-ba"
+name = "conus404_ba"
 description = "Utilities for creating cloud-optimized datasets from the bias-adjusted CONUS404 model output"
 readme = "README.md"
 dynamic = ["version"]
@@ -28,7 +28,7 @@ dependencies = ["cyclopts",
     "zarr", ]
 
 [project.urls]
-Repository = "https://github.com/hytest-org/conus404-ba.git"
+Repository = "https://github.com/hytest-org/conus404_ba.git"
 
 #[project.scripts]
 #convert_params = "pyPRMS.utilities.convert_params:main"
@@ -38,7 +38,7 @@ include-package-data = false
 zip-safe = false
 
 [tool.setuptools.dynamic]
-version = {attr = "conus404-ba.version.__version__"}
+version = {attr = "conus404_ba.version.__version__"}
 
 [tool.setuptools.packages.find]
-include = ["conus404-ba", "conus404-ba.*"]
+include = ["conus404_ba", "conus404_ba.*"]

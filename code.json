@@ -1,6 +1,6 @@
 [
   {
-    "name": "conus404-ba",
+    "name": "conus404_ba",
     "organization": "U.S. Geological Survey",
     "description": "Utilities to create cloud-optimized datasets from bias-adjusted CONUS404 model output",
     "version": "0.0.2",
@@ -11,15 +11,15 @@
       "licenses": [
         {
           "name": "Public Domain, CC0-1.0",
-          "URL": "https://raw.githubusercontent.com/hytest-org/conus404-ba/refs/heads/main/LICENSE"
+          "URL": "https://raw.githubusercontent.com/hytest-org/conus404_ba/refs/heads/main/LICENSE"
         }
       ]
     },
 
-    "homepageURL": "https://github.com/hytest-org/conus404-ba",
+    "homepageURL": "https://github.com/hytest-org/conus404_ba",
     "downloadURL": "https://code.usgs.gov/TEAM_NAME/REPOSITORY_NAME/-/archive/RELEASE_VERSION/REPOSITORY_NAME-RELEASE_VERSION.zip",
     "disclaimerURL": "https://code.usgs.gov/TEAM_NAME/REPOSITORY_NAME/-/raw/RELEASE_VERSION/DISCLAIMER.md",
-    "repositoryURL": "https://github.com/hytest-org/conus404-ba.git",
+    "repositoryURL": "https://github.com/hytest-org/conus404_ba.git",
     "vcs": "git",
 
     "laborHours": 0,
