@@ -156,35 +156,36 @@ def read_metadata(filename):
     Read the metadata information file
     """
 
-    use_cols = ['varname', 'long_name', 'integration_length', 'description',
-                'notes', 'units', 'scale_factor', 'valid_range', 'flag_values',
-                'flag_meanings', 'coordinates']
+    use_cols = ['varname', 'long_name', 'standard_name', 'units', 'coordinates']
+    # use_cols = ['varname', 'long_name', 'integration_length', 'description',
+    #             'notes', 'units', 'scale_factor', 'valid_range', 'flag_values',
+    #             'flag_meanings', 'coordinates']
 
-    coord_map = {'XLONG XLAT': 'lon lat',
-                 'XLONG XLAT XTIME': 'lon lat',
-                 'XLONG_U XLAT_U': 'lon_u lat_u',
-                 'XLONG_U XLAT_U XTIME': 'lon_u lat_u',
-                 'XLONG_V XLAT_V': 'lon_v lat_v',
-                 'XLONG_V XLAT_V XTIME': 'lon_v lat_v'}
+    # coord_map = {'XLONG XLAT': 'lon lat',
+    #              'XLONG XLAT XTIME': 'lon lat',
+    #              'XLONG_U XLAT_U': 'lon_u lat_u',
+    #              'XLONG_U XLAT_U XTIME': 'lon_u lat_u',
+    #              'XLONG_V XLAT_V': 'lon_v lat_v',
+    #              'XLONG_V XLAT_V XTIME': 'lon_v lat_v'}
 
     df = pd.read_csv(filename, sep='\t', index_col='varname', usecols=use_cols)
 
-    # Change the coordinates to match the new lon/lat variable names
-    for kk, vv in coord_map.items():
-        df['coordinates'].mask(df['coordinates'] == kk, vv, inplace=True)
+    # # Change the coordinates to match the new lon/lat variable names
+    # for kk, vv in coord_map.items():
+    #     df['coordinates'].mask(df['coordinates'] == kk, vv, inplace=True)
 
     # Add a few empty attributes, in the future these may already exist
-    df['grid_mapping'] = ''
+    # df['grid_mapping'] = ''
     df['axis'] = ''
-    df['standard_name'] = ''
+    # df['standard_name'] = ''
 
     # Set grid_mapping attribute for variables with non-empty coordinates attribute
-    df['grid_mapping'].mask(df['coordinates'].notnull(), 'crs', inplace=True)
+    # df['grid_mapping'].mask(df['coordinates'].notnull(), 'crs', inplace=True)
 
     # Rename the XTIME variable to time
-    df = df.rename(index={'XTIME': 'time'})
-    df.loc['time', 'axis'] = 'T'
-    df.loc['time', 'standard_name'] = 'time'
+    # df = df.rename(index={'XTIME': 'time'})
+    # df.loc['time', 'axis'] = 'T'
+    # df.loc['time', 'standard_name'] = 'time'
 
     # Rechunking will crash if units for 'time' is overridden with an error
     # like the following:
