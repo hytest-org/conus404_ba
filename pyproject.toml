@@ -17,6 +17,7 @@ classifiers = ["Development Status :: 3 - Alpha",
 
 dependencies = ["cyclopts",
     "dask",
+    "dask-jobqueue",
     "fsspec",
     "mypy_extensions",
     "numcodecs",
@@ -25,6 +26,7 @@ dependencies = ["cyclopts",
     "pyproj",
     "rechunker",
     "rich",
+    "ruamel.yaml",
     "xarray",
     "zarr", ]
 
