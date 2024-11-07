@@ -50,11 +50,6 @@ def apply_metadata(ds, rename_dims, rename_vars, remove_attrs, var_metadata):
     if len(rename_vars) > 0:
         ds = ds.rename_vars(rename_vars)
 
-    ds = ds.assign_coords({'time': ds.XTIME})
-    # 2024-01-22 PAN: Something changed and now XTIME still has to be dropped from the dataset, whereas before it
-    #                 was renamed to 'time'
-    ds = ds.drop_vars(['XTIME'])
-
     # Modify the attributes
     for cvar in ds.variables:
         # Remove unneeded attributes, update the coordinates attribute
