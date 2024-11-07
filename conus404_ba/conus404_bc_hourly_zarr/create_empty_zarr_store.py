@@ -21,7 +21,7 @@ from rich import pretty
 from ..conus404_helpers import get_accum_types, read_metadata
 from ..conus404_config import Cfg
 
-from model_output_to_zarr import load_wrf_files, rechunk_job, resolve_path
+from .model_output_to_zarr import load_wrf_files, rechunk_job, resolve_path
 
 pretty.install()
 con = Console()
