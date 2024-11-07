@@ -5,6 +5,7 @@ import datetime
 import fsspec
 import pandas as pd
 import time
+import warnings
 import xarray as xr
 import zarr
 
@@ -23,6 +24,8 @@ from ..conus404_config import Cfg
 
 from .model_output_to_zarr import load_wrf_files, rechunk_job, resolve_path
 
+warnings.simplefilter(action='ignore', category=FutureWarning)
+
 pretty.install()
 con = Console()
 
@@ -33,7 +36,6 @@ def create_empty_zarr(src_zarr,
                       dst_zarr,
                       end_date,
                       chunk_plan):
-
 
     start_time = time.time()
 

@@ -12,7 +12,7 @@ import fsspec
 import numpy as np
 import pandas as pd
 import time
-
+import warnings
 import xarray as xr
 import zarr
 import zarr.storage
@@ -31,6 +31,8 @@ import ctypes
 from ..conus404_helpers import (apply_metadata, build_hourly_filelist, delete_dir, get_accum_types, read_metadata,
                                 rechunker_wrapper)
 from ..conus404_config import Cfg
+
+warnings.simplefilter(action='ignore', category=FutureWarning)
 
 pretty.install()
 con = Console()
