@@ -18,7 +18,7 @@ from dask.distributed import Client
 from rich.console import Console
 from rich import pretty
 
-from ..conus404_helpers import get_accum_types
+from ..conus404_helpers import get_accum_types, read_metadata
 from ..conus404_config import Cfg
 
 from model_output_to_zarr import load_wrf_files, rechunk_job, resolve_path
@@ -91,6 +91,7 @@ def run_job(config_file: str,
     config = Cfg(config_file)
 
     wrf_dir = resolve_path('wrf_dir', config.wrf_dir)
+    metadata_file = resolve_path('metadata_file', config.metadata_file)
     vars_file = resolve_path('vars_file', config.vars_file)
     dst_zarr = Path(config.dst_zarr).resolve()
 
@@ -157,6 +158,9 @@ def run_job(config_file: str,
     var_list.append('time')
     con.print(f'Number of variables to process: {len(var_list)}')
 
+    # Read the metadata file for modifications to variable attributes
+    var_metadata = read_metadata(metadata_file)
+
     # Set the target directory
     target_dir = Path(config.target_dir) / f'{config.target_pat}{chunk_index:05d}'
     con.print(f'{target_dir=}')
@@ -182,6 +186,7 @@ def run_job(config_file: str,
                 ds_wrf=ds_wrf,
                 target_dir=target_dir,
                 temp_dir=temp_dir,
+                var_metadata=var_metadata,
                 var_list=var_list,
                 chunk_plan=chunk_plan)
 

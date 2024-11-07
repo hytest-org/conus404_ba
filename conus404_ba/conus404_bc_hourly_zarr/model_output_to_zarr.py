@@ -28,7 +28,8 @@ from typing import Annotated, Dict, List, Union
 
 import ctypes
 
-from ..conus404_helpers import build_hourly_filelist, delete_dir, get_accum_types, rechunker_wrapper
+from ..conus404_helpers import (apply_metadata, build_hourly_filelist, delete_dir, get_accum_types, read_metadata,
+                                rechunker_wrapper)
 from ..conus404_config import Cfg
 
 pretty.install()
@@ -79,6 +80,7 @@ def rechunk_job(chunk_index: int,
                 ds_wrf: xr.Dataset,
                 target_dir: Annotated[Path, Parameter(validator=validators.Path(exists=True))],
                 temp_dir: Annotated[Path, Parameter(validator=validators.Path(exists=True))],
+                var_metadata: pd.DataFrame,
                 var_list: List[str],
                 chunk_plan: Dict[str, int]):
     """Use rechunker to rechunk WRF netcdf model output files into zarr format
@@ -87,9 +89,13 @@ def rechunk_job(chunk_index: int,
     :param max_mem: maximum memory per thread
     :param ds_wrf:
     :param target_dir: directory for target zarr files
+    :param var_metadata: dataframe containing variable metadata
     :param var_list: list of variables to process
     :param chunk_plan: dictionary containing chunk sizes for rechunking
     """
+
+    # Attributes that should be removed from all variables
+    remove_attrs = ['esri_pe_string', 'proj4', '_CoordinateAxisType', 'resolution']
 
     fs = fsspec.filesystem('file')
 
@@ -99,6 +105,8 @@ def rechunk_job(chunk_index: int,
     delete_dir(fs, temp_dir)
     delete_dir(fs, target_dir)
     time.sleep(3)  # Wait for files to be removed (necessary? hack!)
+
+    ds_wrf = apply_metadata(ds_wrf, {}, {}, remove_attrs, var_metadata)
 
     # with performance_report(filename=f'dask_perf_{args.index}.html'):
     rechunker_wrapper(ds_wrf[var_list], target_store=target_dir, temp_store=temp_dir,
@@ -173,6 +181,7 @@ def run_job(config_file: str,
     config = Cfg(config_file)
 
     wrf_dir = resolve_path('wrf_dir', config.wrf_dir)
+    metadata_file = resolve_path('metadata_file', config.metadata_file)
     vars_file = resolve_path('vars_file', config.vars_file)
     dst_zarr = resolve_path('dst_zarr', config.dst_zarr)
 
@@ -181,6 +190,7 @@ def run_job(config_file: str,
     con.print(f'{wrf_dir=}')
     # con.print(f'{temp_dir=}')
     con.print(f'{dst_zarr=}')
+    con.print(f'{metadata_file=}')
     con.print(f'{vars_file=}')
     con.print('-'*60)
 
@@ -243,6 +253,9 @@ def run_job(config_file: str,
     var_list.append('time')
     con.print(f'Number of variables to process: {len(var_list)}')
 
+    # Read the metadata file for modifications to variable attributes
+    var_metadata = read_metadata(metadata_file)
+
     for cidx in range(chunk_index, chunk_index+config.num_chunks_per_job):
         # Set the target directory
         target_dir = Path(config.target_dir) / f'{config.target_pat}{cidx:05d}'
@@ -271,6 +284,7 @@ def run_job(config_file: str,
                     ds_wrf=ds_wrf,
                     target_dir=target_dir,
                     temp_dir=temp_dir,
+                    var_metadata=var_metadata,
                     var_list=var_list,
                     chunk_plan=chunk_plan)
 
