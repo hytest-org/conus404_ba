@@ -2,7 +2,7 @@
 
 #      Author: Parker Norton (pnorton@usgs.gov)
 #        Date: 2024-05-08
-# Description: Configuration class for conus404-ba processing
+# Description: Configuration class for conus404_ba processing
 #              YAML is used for the backend
 
 import ruamel.yaml
