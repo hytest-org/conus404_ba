@@ -144,7 +144,7 @@ def run_job(config_file: str,
     cluster.scale(jobs=config.max_jobs)
 
     client = Client(cluster)
-    client.wait_for_workers(24)
+    client.wait_for_workers(config.processes * config.max_jobs)
 
     max_mem = f'{(config.memory_per_job / config.cores_per_job) * 0.8:0.1f}GB'
     # con.print(f'Maximum memory per thread for rechunking: {max_mem}')
