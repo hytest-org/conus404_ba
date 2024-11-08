@@ -106,7 +106,7 @@ def run_job(config_file: str,
     vars_file = resolve_path('vars_file', config.vars_file)
     dst_zarr = Path(config.dst_zarr).resolve()
 
-    temp_dir = Path(config.temp_dir) / f'{chunk_index:05d}'
+    temp_dir = Path(config.temp_dir) / f'tmp_{chunk_index:05d}'
 
     con.print(f'{wrf_dir=}')
     con.print(f'{temp_dir=}')
