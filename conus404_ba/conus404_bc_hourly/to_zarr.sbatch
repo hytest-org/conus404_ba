@@ -1,13 +1,14 @@
 #!/bin/bash
-#SBATCH -J cat_zarr
-#SBATCH -t 00:30:00
-#SBATCH -o %j-to_zarr.out
-#SBATCH -p workq
-#SBATCH -A wbeep
+#SBATCH -J c404-bc_zarr
+#SBATCH -t 06:00:00
+#SBATCH -o %j-c404-bc_zarr.out
+#SBATCH -p cpu
+#SBATCH -A mappnat
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 # #SBATCH --hint=nomultithread
-#SBATCH --cpus-per-task=40
+#SBATCH --cpus-per-task=1
+#SBATCH --mem-per-cpu=24GB
 #  #SBATCH --array=10-100:10
 
 # STEP should match the stride in the --array argument
