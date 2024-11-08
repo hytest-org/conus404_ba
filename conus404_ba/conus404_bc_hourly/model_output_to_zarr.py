@@ -266,7 +266,7 @@ def run_job(config_file: str,
 
         # Start date is selected based on chunk index
         st_date = base_date + datetime.timedelta(days=num_days * cidx)
-        en_date = st_date + delta - datetime.timedelta(days=1)
+        en_date = st_date + delta - datetime.timedelta(hours=1)
 
         con.print(f'{cidx}: {st_date.strftime("%Y-%m-%d %H:%M:%S")} to ' +
                   f'{en_date.strftime("%Y-%m-%d %H:%M:%S")}')
