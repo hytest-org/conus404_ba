@@ -9,7 +9,7 @@ import warnings
 import xarray as xr
 import zarr
 
-from cyclopts import App, Parameter
+from cyclopts import App, Parameter, validators
 from pathlib import Path
 
 from numcodecs import Zstd
@@ -18,6 +18,8 @@ from dask.distributed import Client
 
 from rich.console import Console
 from rich import pretty
+
+from typing import Annotated, Dict, List, Union
 
 from ..conus404_helpers import get_accum_types, read_metadata
 from ..conus404_config import Cfg
@@ -32,10 +34,17 @@ con = Console()
 app = App(default_parameter=Parameter(negative=()))
 
 
-def create_empty_zarr(src_zarr,
-                      dst_zarr,
-                      end_date,
-                      chunk_plan):
+def create_empty_zarr(src_zarr: Annotated[Path, Parameter(validator=validators.Path(exists=True))],
+                      dst_zarr: Annotated[Path, Parameter(validator=validators.Path(exists=True))],
+                      end_date: Union[datetime.datetime, datetime.date],
+                      chunk_plan: Dict[str, int]):
+    """Create an empty zarr store given a source zarr dataset
+
+    :param src_zarr: source zarr dataset
+    :param dst_zarr: destination zarr store to create
+    :param end_date: last date to write in the destination zarr
+    :param chunk_plan: dictionary containing chunk sizes
+    """
 
     start_time = time.time()
 
@@ -77,7 +86,7 @@ def create_empty_zarr(src_zarr,
         except KeyError:
             pass
 
-    # Add the wrf constants
+    # Add the constant variables
     # print('    --- Write constant variables', end=' ')
     if len(drop_vars) > 0:
         ds[drop_vars].chunk(dst_chunks).to_zarr(dst_zarr, mode='a')
@@ -157,7 +166,7 @@ def run_job(config_file: str,
     # Read variables to process
     df_vars = pd.read_csv(vars_file)
     var_list = df_vars['variable'].to_list()
-    var_list.append('time')
+    # var_list.append('time')
     con.print(f'Number of variables to process: {len(var_list)}')
 
     # Read the metadata file for modifications to variable attributes
