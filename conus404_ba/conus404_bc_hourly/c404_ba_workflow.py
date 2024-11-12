@@ -27,8 +27,6 @@ from typing import Annotated, Dict, List, Optional, Union
 from zarr.convenience import consolidate_metadata
 from zarr.util import NumberEncoder
 
-import ctypes
-
 from ..conus404_helpers import (apply_metadata, build_hourly_filelist, delete_dir, get_accum_types, read_metadata,
                                 rechunker_wrapper)
 from ..conus404_config import Cfg
@@ -503,7 +501,7 @@ def extend_time(config_file: str,
     ds[['time']].to_zarr(dst_zarr, mode='a')
 
 
-@app.default()
+@app.command()
 def process_wrf(config_file: str,
                 chunk_index: int):
     """Rechunk WRF model output files and insert into existing zarr store
