@@ -53,7 +53,7 @@ def extend_time(dst_zarr: Annotated[Path, Parameter(validator=validators.Path(ex
 
     # Define the new time range
     # Date range should always start from the original starting date in the zarr dataset
-    dates = pd.date_range(start=ds.time[0].values, end=end_date, freq=freq, unit=ds.time.encoding['units'])
+    dates = pd.date_range(start=ds.time[0].values, end=end_date, freq=freq)
 
     con.print('  reading metadata')
     # Get the index for time dimension of each variable from the consolidated metadata
