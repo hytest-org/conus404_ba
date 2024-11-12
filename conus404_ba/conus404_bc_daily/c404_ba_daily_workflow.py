@@ -135,7 +135,7 @@ def create_zarr(config_file: str):
     drop_vars.remove('T2D')
     drop_vars.remove('RAINRATE')
 
-    ds[drop_vars].chunk(config.dst_chunks).to_zarr(config.dst_zarr, mode='a')
+    ds[drop_vars].chunk(dst_chunks).to_zarr(config.dst_zarr, mode='a')
     con.print(f'Write constant variabls: {time.time() - start_time:0.3f} s')
 
 
