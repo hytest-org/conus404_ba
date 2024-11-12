@@ -91,10 +91,9 @@ def create_empty_zarr(src_zarr: Annotated[Path, Parameter(validator=validators.P
         except KeyError:
             pass
 
-    crs_ds = create_crs(dst_zarr)
-    crs_ds.to_zarr(dst_zarr, mode='a')
-
     if 'crs' in drop_vars:
+        crs_ds = create_crs(ds)
+        crs_ds.to_zarr(dst_zarr, mode='a')
         drop_vars.remove('crs')
 
     # Add the constant variables
@@ -103,12 +102,7 @@ def create_empty_zarr(src_zarr: Annotated[Path, Parameter(validator=validators.P
     con.print(f'Write constant variabls: {time.time() - start_time:0.3f} s')
 
 
-def create_crs(dst_zarr: Annotated[Path, Parameter(validator=validators.Path(exists=True))]):
-    ds = xr.open_dataset(dst_zarr, engine='zarr',
-                         backend_kwargs=dict(consolidated=True),
-                         decode_coords=True,
-                         chunks={})
-
+def create_crs(ds):
     # Convert the existing crs to a proper CRS and then convert
     # back to a cf-compliant set of attributes
     new_crs_attrs = pyproj.CRS(pyproj.CRS.from_cf(ds.crs.attrs)).to_cf()
