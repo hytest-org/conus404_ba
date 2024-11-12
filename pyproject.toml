@@ -35,6 +35,7 @@ dependencies = ["cyclopts",
 Repository = "https://github.com/hytest-org/conus404_ba.git"
 
 [project.scripts]
+c404-ba_workflow = "conus404_ba.conus404_bc_hourly.c404-ba_workflow:main"
 c404-ba_model_output_to_zarr = "conus404_ba.conus404_bc_hourly.model_output_to_zarr:main"
 c404-ba_create_zarr = "conus404_ba.conus404_bc_hourly.create_empty_zarr_store:main"
 c404-ba_extend_zarr_time = "conus404_ba.conus404_bc_hourly.extend_zarr_time:main"
