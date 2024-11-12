@@ -406,21 +406,21 @@ def create_zarr(config_file: str, chunk_index: int):
 
 
 @app.command()
-def extend_time(dst_zarr: Annotated[Path, Parameter(validator=validators.Path(exists=True))],
-                end_date: Union[datetime.datetime, datetime.date, str],
+def extend_time(config_file: str,
+                # dst_zarr: Annotated[Path, Parameter(validator=validators.Path(exists=True))],
+                # end_date: Union[datetime.datetime, datetime.date, str],
                 freq: Optional[str] = '1h'):
     """Extend the time dimension in an existing zarr dataset
 
-    :param dst_zarr: zarr store to extend time in
-    :param end_date: new ending date for zarr
+    :param config_file: Name of configuration file
     :param freq: frequency to use for timesteps
     """
 
-    dst_filename = f'{dst_zarr}/.zmetadata'
+    config = Cfg(config_file)
 
-    con.print(f'Zarr store: {dst_zarr}')
-    con.print(f'New end date: {end_date}')
-    con.print('-'*40)
+    dst_zarr = Path(config.dst_zarr).resolve()
+    end_date = config.end_date
+    dst_filename = f'{dst_zarr}/.zmetadata'
 
     # Read the consolidated metadata
     with open(dst_filename, 'r') as in_hdl:
@@ -430,6 +430,15 @@ def extend_time(dst_zarr: Annotated[Path, Parameter(validator=validators.Path(ex
     con.print('  reading zarr store')
     ds = xr.open_dataset(dst_zarr, engine='zarr',
                          backend_kwargs=dict(consolidated=True), chunks={})
+
+    if pd.to_datetime(end_date) == ds.time[-1].values:
+        con.print(f'  [green]INFO[/]: {end_date} is already the last date in the zarr dataset')
+        return
+
+    con.print(f'Zarr store: {dst_zarr}')
+    con.print(f'Original end date: {ds.time[-1].values}')
+    con.print(f'New end date: {end_date}')
+    con.print('-'*40)
 
     # Define the new time range
     # Date range should always start from the original starting date in the zarr dataset
