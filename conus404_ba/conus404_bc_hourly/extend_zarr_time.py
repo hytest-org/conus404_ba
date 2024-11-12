@@ -25,6 +25,7 @@ con = Console(record=True)
 app = App(default_parameter=Parameter(negative=()))
 
 
+@app.default()
 def extend_time(dst_zarr: Annotated[Path, Parameter(validator=validators.Path(exists=True))],
                 end_date: Union[datetime.datetime, datetime.date],
                 freq: Optional[str] = '1h'):
