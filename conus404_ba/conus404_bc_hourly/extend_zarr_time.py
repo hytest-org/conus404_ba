@@ -53,7 +53,7 @@ def extend_time(dst_zarr: Annotated[Path, Parameter(validator=validators.Path(ex
 
     # Define the new time range
     # Date range should always start from the original starting date in the zarr dataset
-    dates = pd.date_range(start=ds.time[0].values, end=end_date, freq=freq)
+    dates = pd.date_range(start=ds.time[0].values, end=end_date, freq=freq, unit=ds.time.encoding['units'])
 
     con.print('  reading metadata')
     # Get the index for time dimension of each variable from the consolidated metadata
@@ -102,7 +102,8 @@ def extend_time(dst_zarr: Annotated[Path, Parameter(validator=validators.Path(ex
     con.print('  consolidating metadata')
     # Re-open the zarr datastore using the unconsolidated metadata
     ds = xr.open_dataset(dst_zarr, engine='zarr',
-                         backend_kwargs=dict(consolidated=False), chunks={})
+                         backend_kwargs=dict(consolidated=False), chunks={},
+                         decode_times=False)
 
     # Write a new consolidated metadata file
     consolidate_metadata(store=dst_zarr, metadata_key='.zmetadata')
