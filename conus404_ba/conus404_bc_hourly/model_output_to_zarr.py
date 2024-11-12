@@ -78,7 +78,7 @@ def load_wrf_files(num_days: int,
 
 
 def rechunk_job(chunk_index: int,
-                max_mem: float,
+                max_mem: Union[float, str],
                 ds_wrf: xr.Dataset,
                 target_dir: Annotated[Path, Parameter(validator=validators.Path(exists=True))],
                 temp_dir: Annotated[Path, Parameter(validator=validators.Path(exists=True))],
