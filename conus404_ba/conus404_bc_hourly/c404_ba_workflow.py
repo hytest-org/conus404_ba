@@ -41,18 +41,6 @@ con = Console()
 app = App(default_parameter=Parameter(negative=()))
 
 
-def trim_memory() -> int:
-    libc = ctypes.CDLL('libc.so.6')
-    return libc.malloc_trim(0)
-
-
-def set_blosc():
-    import numcodecs
-    numcodecs.blosc.use_threads = False
-
-    return numcodecs.blosc.use_threads
-
-
 def create_empty_zarr(src_zarr: Annotated[Path, Parameter(validator=validators.Path(exists=True))],
                       dst_zarr: Annotated[Path, Parameter(validator=validators.Path(exists=True))],
                       end_date: Union[datetime.datetime, datetime.date],
@@ -174,6 +162,13 @@ def load_wrf_files(num_days: int,
                    st_date: Union[datetime.datetime, datetime.date],
                    file_pat: str,
                    wrf_dir: Annotated[Path, Parameter(validator=validators.Path(exists=True))]):
+    """Load WRF model output netCDF files into an xarray dataset
+
+    :param num_days: number of hours in each chunk
+    :param st_date: start date for the chunk
+    :param file_pat: file pattern for WRF model output files
+    :param wrf_dir: directory containing WRF model output files
+    """
 
     concat_dim = 'time'
     try:
@@ -295,6 +290,9 @@ def resolve_path(msg: str, path: str):
 @app.command()
 def create_zarr(config_file: str, chunk_index: int):
     """Create a zarr store using a single chunk of WRF model output files
+
+    :param config_file: Name of configuration file
+    :param chunk_index: index of chunk to insert
     """
 
     job_name = f'wrf_rechunk_{chunk_index}'
@@ -407,8 +405,6 @@ def create_zarr(config_file: str, chunk_index: int):
 
 @app.command()
 def extend_time(config_file: str,
-                # dst_zarr: Annotated[Path, Parameter(validator=validators.Path(exists=True))],
-                # end_date: Union[datetime.datetime, datetime.date, str],
                 freq: Optional[str] = '1h'):
     """Extend the time dimension in an existing zarr dataset
 
@@ -510,6 +506,11 @@ def extend_time(config_file: str,
 @app.default()
 def process_wrf(config_file: str,
                 chunk_index: int):
+    """Rechunk WRF model output files and insert into existing zarr store
+
+    :param config_file: Name of configuration file
+    :param chunk_index: Index of the chunk to process
+    """
 
     job_name = f'wrf_rechunk_{chunk_index}'
 
