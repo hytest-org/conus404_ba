@@ -228,8 +228,6 @@ def run_job(config_file: str,
     # Change the default compressor to Zstd
     zarr.storage.default_compressor = Zstd(level=9)
 
-    fs = fsspec.filesystem('file')
-
     # Read variables to process
     df_vars = pd.read_csv(vars_file)
     var_list = df_vars['variable'].to_list()
