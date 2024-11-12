@@ -3,7 +3,9 @@
 import dask
 import datetime
 import fsspec
+import json
 import pandas as pd
+import pyproj
 import time
 import warnings
 import xarray as xr
@@ -11,6 +13,8 @@ import zarr
 
 from cyclopts import App, Parameter, validators
 from pathlib import Path
+from zarr.convenience import consolidate_metadata
+from zarr.util import NumberEncoder
 
 from numcodecs import Zstd
 from dask_jobqueue import SLURMCluster
@@ -87,10 +91,73 @@ def create_empty_zarr(src_zarr: Annotated[Path, Parameter(validator=validators.P
             pass
 
     # Add the constant variables
-    # print('    --- Write constant variables', end=' ')
     if len(drop_vars) > 0:
         ds[drop_vars].chunk(dst_chunks).to_zarr(dst_zarr, mode='a')
     con.print(f'Write constant variabls: {time.time() - start_time:0.3f} s')
+
+
+def fix_crs(dst_zarr: Annotated[Path, Parameter(validator=validators.Path(exists=True))]):
+    """Fix the crs variable and attributes in the zarr store
+
+    :param dst_zarr: Path to the destination zarr store
+    """
+
+    # The consolidated metadata file for the zarr dataset
+    zmetadata_file = f'{dst_zarr}/.zmetadata'
+
+    ds = xr.open_dataset(dst_zarr, engine='zarr',
+                         backend_kwargs=dict(consolidated=True),
+                         decode_coords=True,
+                         chunks={})
+
+    # Convert the existing crs to a proper CRS and then convert
+    # back to a cf-compliant set of attributes
+    new_crs_attrs = pyproj.CRS(pyproj.CRS.from_cf(ds.crs.attrs)).to_cf()
+
+    fs = fsspec.filesystem('file')
+
+    with fs.open(zmetadata_file, 'r') as in_hdl:
+        src_metadata = json.load(in_hdl)
+
+    for kk, vv in src_metadata['metadata'].items():
+        if kk in ['.zattrs', '.zgroup']:
+            continue
+
+        varname, metatype = kk.split('/')
+
+        if metatype == '.zattrs':
+            # Open the unconsolidated .zattrs file for the variable
+            with fs.open(f'{dst_zarr}/{kk}', 'r') as in_hdl:
+                orig_metadata = json.load(in_hdl)
+
+            if varname == 'crs':
+                # Completely replace the crs attributes but keep _ARRAY_DIMENSIONS
+                zdim = orig_metadata['_ARRAY_DIMENSIONS']
+                orig_metadata = new_crs_attrs
+                orig_metadata['_ARRAY_DIMENSIONS'] = zdim
+
+                # Change the datatype from |S1 to integer ('<i4') in the variable .zarray file
+                with fs.open(f'{dst_zarr}/{varname}/.zarray', 'r') as in_hdl:
+                    orig_zarray = json.load(in_hdl)
+                orig_zarray['dtype'] = '<i4'
+
+                with fs.open(f'{dst_zarr}/{varname}/.zarray', 'w') as out_hdl:
+                    json.dump(orig_zarray, out_hdl, indent=4, sort_keys=True, ensure_ascii=True,
+                              separators=(',', ': '), cls=NumberEncoder)
+
+            # Write the updated metadata to the variable .zattrs file
+            cfilename = f'{dst_zarr}/{kk}'
+            with fs.open(cfilename, 'w') as out_hdl:
+                json.dump(orig_metadata, out_hdl, indent=4, sort_keys=True, ensure_ascii=True,
+                          separators=(',', ': '), cls=NumberEncoder)
+
+    # # Now reopen the zarr dataset with unconsolidated metadata
+    # ds = xr.open_dataset(fs.get_mapper(dst_zarr), engine='zarr',
+    #                      backend_kwargs=dict(consolidated=False),
+    #                      decode_coords=True, chunks={})
+
+    # Write the new consolidated metadata
+    consolidate_metadata(store=fs.get_mapper(dst_zarr), metadata_key='.zmetadata')
 
 
 @app.default()
