@@ -35,7 +35,7 @@ dependencies = ["cyclopts",
 Repository = "https://github.com/hytest-org/conus404_ba.git"
 
 [project.scripts]
-c404-ba_workflow = "conus404_ba.conus404_bc_hourly.c404_ba_workflow:main"
+c404-ba_hourly_workflow = "conus404_ba.conus404_bc_hourly.c404_ba_hourly_workflow:main"
 
 [tool.setuptools]
 include-package-data = false
