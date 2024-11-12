@@ -27,7 +27,7 @@ app = App(default_parameter=Parameter(negative=()))
 
 @app.default()
 def extend_time(dst_zarr: Annotated[Path, Parameter(validator=validators.Path(exists=True))],
-                end_date: Union[datetime.datetime, datetime.date],
+                end_date: Union[datetime.datetime, datetime.date, str],
                 freq: Optional[str] = '1h'):
     """Extend the time dimension in an existing zarr dataset
 
