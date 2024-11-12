@@ -277,6 +277,9 @@ def run_job(config_file: str,
                       end_date=config.end_date,
                       chunk_plan=chunk_plan)
 
+    # Correct the crs variable and attributes
+    fix_crs(dst_zarr=dst_zarr)
+
     cluster.scale(0)
 
 
