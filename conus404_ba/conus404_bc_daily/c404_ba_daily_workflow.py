@@ -133,6 +133,9 @@ def remove_chunk_encoding(ds: xr.Dataset):
 def create_zarr(config_file: str):
     """Create an empty daily timestep zarr store using information from a source hourly zarr
 
+    The beginning and ending date for the newly created zarr is taken from the source hourly
+    zarr at time of execution.
+
     :param config_file: Name of configuration file
     """
 
@@ -224,15 +227,21 @@ def extend_time(config_file: str,
                 freq: Optional[str] = '1d'):
     """Extend the time dimension in an existing zarr dataset
 
+    The time extension is done by retrieving the current ending time
+    from the hourly zarr dataset
+
     :param config_file: Name of configuration file
     :param freq: frequency to use for timesteps
     """
 
     config = Cfg(config_file)
 
+    src_zarr = Path(config.src_zarr).resolve()
     dst_zarr = Path(config.dst_zarr).resolve()
-    end_date = config.end_date
+    # end_date = config.end_date
     dst_filename = f'{dst_zarr}/.zmetadata'
+
+    ds_hourly = xr.open_dataset(src_zarr, engine='zarr', backend_kwargs=dict(consolidated=True), chunks={})
 
     # Read the consolidated metadata
     with open(dst_filename, 'r') as in_hdl:
@@ -243,8 +252,10 @@ def extend_time(config_file: str,
     ds = xr.open_dataset(dst_zarr, engine='zarr',
                          backend_kwargs=dict(consolidated=True), chunks={})
 
-    if pd.to_datetime(end_date) == ds.time[-1].values:
-        con.print(f'  [green]INFO[/]: {end_date} is already the last date in the zarr dataset')
+    end_date = pd.to_datetime(ds_hourly.time[-1].values).date()
+
+    if end_date == pd.to_datetime(ds.time[-1].values).date():
+        con.print(f'  [green]INFO[/]: {end_date} is already the last date in the daily zarr dataset')
         return
 
     con.print(f'Zarr store: {dst_zarr}')
