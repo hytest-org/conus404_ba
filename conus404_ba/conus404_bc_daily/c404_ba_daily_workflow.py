@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 
 from cyclopts import App, Parameter   # , validators
-# from pathlib import Path
+from pathlib import Path
 
 import dask
+import json
 import numpy as np
 import os
 import pandas as pd
@@ -20,9 +21,9 @@ from numcodecs import Zstd
 from dask_jobqueue import SLURMCluster
 from dask.distributed import Client   # , as_completed
 
-from typing import Dict, List
-# from zarr.convenience import consolidate_metadata
-# from zarr.util import NumberEncoder
+from typing import Dict, List, Optional
+from zarr.convenience import consolidate_metadata
+from zarr.util import NumberEncoder
 
 from ..conus404_helpers import get_accum_types
 from ..conus404_config import Cfg
@@ -54,7 +55,16 @@ def compute_daily(ds: xr.Dataset,
                   var_list: List,
                   st_idx: int,
                   en_idx: int,
-                  chunks: Dict[str, int] = None):
+                  chunks: Optional[Dict[str, int]] = None):
+    """Compute daily values from a source hourly dataset
+
+    :param ds: Source hourly dataset
+    :param var_list: List of variables to process
+    :param st_idx: Starting index in source hourly dataset
+    :param en_idx: Ending index in source hourly dataset
+    :param chunks: Dictionary containing chunk sizes
+    """
+
     if chunks is None:
         chunks = {}
 
@@ -87,6 +97,12 @@ def compute_daily(ds: xr.Dataset,
 
 
 def adjust_time(ds: xr.Dataset, time_adj: int):
+    """Adjust time values after computing daily from hourly to align time boundaries
+
+    :param ds: Dataset to adjust time values
+    :param time_adj: Number of seconds to adjust
+    """
+
     # Adjust the time values, pass the original encoding to the new time index
     save_enc = ds.time.encoding
     del save_enc['chunks']
@@ -98,6 +114,11 @@ def adjust_time(ds: xr.Dataset, time_adj: int):
 
 
 def remove_chunk_encoding(ds: xr.Dataset):
+    """Remove existing encoding from variables in dataset
+
+    :param ds: Dataset to remove encoding from
+    """
+
     # Remove the existing encoding for chunks
     for vv in ds.variables:
         try:
@@ -110,6 +131,11 @@ def remove_chunk_encoding(ds: xr.Dataset):
 
 @app.command()
 def create_zarr(config_file: str):
+    """Create an empty daily timestep zarr store using information from a source hourly zarr
+
+    :param config_file: Name of configuration file
+    """
+
     config = Cfg(config_file)
 
     job_name = f'create_zarr'
@@ -194,8 +220,110 @@ def create_zarr(config_file: str):
 
 
 @app.command()
+def extend_time(config_file: str,
+                freq: Optional[str] = '1d'):
+    """Extend the time dimension in an existing zarr dataset
+
+    :param config_file: Name of configuration file
+    :param freq: frequency to use for timesteps
+    """
+
+    config = Cfg(config_file)
+
+    dst_zarr = Path(config.dst_zarr).resolve()
+    end_date = config.end_date
+    dst_filename = f'{dst_zarr}/.zmetadata'
+
+    # Read the consolidated metadata
+    with open(dst_filename, 'r') as in_hdl:
+        data = json.load(in_hdl)
+
+    # Open the target zarr dataset
+    con.print('  reading zarr store')
+    ds = xr.open_dataset(dst_zarr, engine='zarr',
+                         backend_kwargs=dict(consolidated=True), chunks={})
+
+    if pd.to_datetime(end_date) == ds.time[-1].values:
+        con.print(f'  [green]INFO[/]: {end_date} is already the last date in the zarr dataset')
+        return
+
+    con.print(f'Zarr store: {dst_zarr}')
+    con.print(f'Original end date: {ds.time[-1].values}')
+    con.print(f'New end date: {end_date}')
+    con.print('-'*40)
+
+    # Define the new time range
+    # Date range should always start from the original starting date in the zarr dataset
+    dates = pd.date_range(start=ds.time[0].values, end=end_date, freq=freq)
+
+    con.print('  reading metadata')
+    # Get the index for time dimension of each variable from the consolidated metadata
+    time_index = {}
+
+    for kk, vv in data['metadata'].items():
+        if kk in ['.zattrs', '.zgroup']:
+            continue
+
+        varname, metatype = kk.split('/')
+
+        if metatype == '.zattrs':
+            try:
+                time_index[varname] = vv['_ARRAY_DIMENSIONS'].index('time')
+            except ValueError:
+                # Time dimension not used for this variable
+                pass
+
+            # con.print(f'{kk} {vv["_ARRAY_DIMENSIONS"]}')
+
+    # Index for the time dimension for each variable
+    # con.print(time_index)
+
+    # Change the size of the time dimension in the unconsolidated metadata for each variable
+    # This will overwrite the original .zarray file for each variable
+    con.print('  updating metadata')
+    for kk, vv in time_index.items():
+        cfilename = f'{dst_zarr}/{kk}/.zarray'
+
+        with open(cfilename, 'r') as in_hdl:
+            uncol_meta = json.load(in_hdl)
+
+        # Update the shape of the variable
+        uncol_meta['shape'][vv] = len(dates)
+
+        # Write the updated metadata file
+        with open(cfilename, 'w') as out_hdl:
+            json.dump(uncol_meta, out_hdl, indent=4, sort_keys=True, ensure_ascii=True,
+                      separators=(',', ': '), cls=NumberEncoder)
+    ds.close()
+
+    con.print('  consolidating metadata')
+    # Re-open the zarr datastore using the unconsolidated metadata
+    ds = xr.open_dataset(dst_zarr, engine='zarr',
+                         backend_kwargs=dict(consolidated=False), chunks={},
+                         decode_times=False)
+
+    # Write a new consolidated metadata file
+    consolidate_metadata(store=dst_zarr, metadata_key='.zmetadata')
+
+    # Write the new time values
+    con.print('  updating time variable in zarr store')
+    save_enc = ds['time'].encoding
+
+    ds.coords['time'] = dates
+    ds['time'].encoding.update(save_enc)
+
+    ds[['time']].to_zarr(dst_zarr, mode='a')
+
+
+@app.command()
 def process(config_file: str,
             chunk_index: int):
+    """Convert hourly CONUS404-BA zarr dataset to daily
+
+    :param config_file: Name of configuration file
+    :param chunk_index: Index of the chunk to process
+    """
+
     con.print(f'HOST: {os.environ.get("HOSTNAME")}')
     con.print(f'SLURMD_NODENAME: {os.environ.get("SLURMD_NODENAME")}')
 
