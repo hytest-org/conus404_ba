@@ -1,15 +1,12 @@
 #!/usr/bin/env python3
 
-from cyclopts import App, Parameter, validators
-from pathlib import Path
+from cyclopts import App, Parameter   # , validators
+# from pathlib import Path
 
 import dask
-# import datetime
-# import fsspec
-# import json
-# import numpy as np
+import numpy as np
+import os
 import pandas as pd
-# import pyproj
 import time
 import warnings
 import xarray as xr
@@ -23,12 +20,11 @@ from numcodecs import Zstd
 from dask_jobqueue import SLURMCluster
 from dask.distributed import Client   # , as_completed
 
-# from typing import Annotated, Dict, List, Optional, Union
+from typing import Dict, List
 # from zarr.convenience import consolidate_metadata
 # from zarr.util import NumberEncoder
 
-from ..conus404_helpers import (apply_metadata, build_hourly_filelist, delete_dir, get_accum_types, read_metadata,
-                                rechunker_wrapper)
+from ..conus404_helpers import get_accum_types
 from ..conus404_config import Cfg
 
 warnings.simplefilter(action='ignore', category=FutureWarning)
@@ -52,6 +48,64 @@ var_attrs = dict(T2MAX=dict(coordinates='x y',
                            standard_name='precipitation',
                            units='mm',
                            integration_length='24-hour accumulation'))
+
+
+def compute_daily(ds: xr.Dataset,
+                  var_list: List,
+                  st_idx: int,
+                  en_idx: int,
+                  chunks: Dict[str, int] = None):
+    if chunks is None:
+        chunks = {}
+
+    # NOTE: make sure the arrays have the correct final chunking.
+
+    ds_day_cnk = ds[var_list].isel(time=slice(st_idx, en_idx))
+    con.print(f'    instant: hourly range: {st_idx} ({ds_day_cnk.time.dt.strftime("%Y-%m-%d %H:%M:%S")[0].values}) to '
+              f'{en_idx} ({ds_day_cnk.time.dt.strftime("%Y-%m-%d %H:%M:%S")[-1].values})')
+
+    if 'T2D' in var_list:
+        ds_max = ds_day_cnk['T2D'].coarsen(time=24, boundary='pad').max(skipna=False).chunk(chunks)
+        ds_max.name = 'T2MAX'
+
+        ds_min = ds_day_cnk['T2D'].coarsen(time=24, boundary='pad').min(skipna=False).chunk(chunks)
+        ds_min.name = 'T2MIN'
+
+    if 'RAINRATE' in var_list:
+        ds_rain = (ds_day_cnk['RAINRATE'] * 3600).coarsen(time=24, boundary='pad').sum(skipna=False).chunk(chunks)
+        ds_rain.name = 'RAIN'
+
+    if 'T2D' in var_list and 'RAINRATE' in var_list:
+        ds_daily = xr.merge([ds_min, ds_max, ds_rain])
+        return ds_daily
+    elif 'T2D' in var_list:
+        ds_daily = xr.merge([ds_min, ds_max])
+        return ds_daily
+    elif 'RAINRATE' in var_list:
+        ds_daily = xr.merge([ds_rain])
+        return ds_daily
+
+
+def adjust_time(ds: xr.Dataset, time_adj: int):
+    # Adjust the time values, pass the original encoding to the new time index
+    save_enc = ds.time.encoding
+    del save_enc['chunks']
+
+    ds['time'] = ds['time'] - np.timedelta64(time_adj, 'm')
+    ds.time.encoding = save_enc
+
+    return ds
+
+
+def remove_chunk_encoding(ds: xr.Dataset):
+    # Remove the existing encoding for chunks
+    for vv in ds.variables:
+        try:
+            del ds[vv].encoding['chunks']
+        except KeyError:
+            pass
+
+    return ds
 
 
 @app.command()
@@ -137,6 +191,134 @@ def create_zarr(config_file: str):
 
     ds[drop_vars].chunk(dst_chunks).to_zarr(config.dst_zarr, mode='a')
     con.print(f'Write constant variabls: {time.time() - start_time:0.3f} s')
+
+
+@app.command()
+def process(config_file: str,
+            chunk_index: int):
+    con.print(f'HOST: {os.environ.get("HOSTNAME")}')
+    con.print(f'SLURMD_NODENAME: {os.environ.get("SLURMD_NODENAME")}')
+
+    job_name = f'c404BA_daily_{chunk_index}'
+
+    config = Cfg(config_file)
+
+    chunk_plan = config.chunk_plan
+
+    # Amount in minutes to adjust the daily time
+    adj_val = {'instant': 690,
+               'cum60': 750,
+               'cum_sim': 750}
+
+    con.print(f'dask tmp directory: {dask.config.get("temporary-directory")}')
+
+    start_time = time.time()
+    dask.config.set({"array.slicing.split_large_chunks": False})
+
+    # cluster = PBSCluster(job_name=job_name,
+    #                      queue=config.queue,
+    #                      account="NRAL0017",
+    #                      interface='ib0',
+    #                      cores=config.cores_per_job,
+    #                      memory=config.memory_per_job,
+    #                      walltime="05:00:00",
+    #                      death_timeout=75)
+
+    cluster = SLURMCluster(job_name=job_name,
+                           queue=config.queue,
+                           account=config.account,
+                           interface=config.interface,
+                           cores=config.cores_per_job,    # this is --cpus-per-task
+                           processes=config.processes,    # this is numbers of workers for dask
+                           memory=f'{config.memory_per_job} GiB',   # total amount of memory for job
+                           walltime=config.walltime)
+                           # job_cpu=8,   # this appears to override cores, but cores is still a required argument
+                           # job_extra_directives=['--nodes=6'],
+                           # local_directory='/home/pnorton/hytest/hourly_processing')
+
+    con.print(cluster.job_script())
+    cluster.scale(jobs=config.max_jobs)
+
+    client = Client(cluster)
+    client.wait_for_workers(config.processes * config.max_jobs)
+
+    # Change the default compressor to Zstd
+    zarr.storage.default_compressor = Zstd(level=9)
+
+    con.print('--- Open source datastore ---')
+    # Open hourly source datastore
+    ds_hourly = xr.open_dataset(config.src_zarr, engine='zarr', backend_kwargs=dict(consolidated=True), chunks={})
+
+    # Hourly source information needed for processing
+    # hrly_days_per_cnk = 6
+    # hrly_time_cnk = 24 * hrly_days_per_cnk
+    hrly_step_idx = 24 * chunk_plan['time']
+    hrly_last_idx = ds_hourly.time.size
+
+    # Get integration information for computing daily
+    accum_types = get_accum_types(ds_hourly)
+    drop_vars = accum_types['constant']
+
+    var_list = accum_types['instantaneous']
+    var_list.sort()
+    # Can remove either T2D or RAINRATE to limit which variables are computed for daily
+    # var_list.remove('T2D')
+
+    con.print(f'    --- Number of variables: {len(var_list)}')
+
+    if chunk_index * hrly_step_idx >= hrly_last_idx:
+        con.print('[red]ERROR[/]: Starting index beyond end of available hourly data')
+        exit()
+
+    for cidx in range(chunk_index, chunk_index+config.num_chunks_per_job):
+        # for c_loop in range(args.loop):
+        loop_start = time.time()
+        print(f'--- Index {cidx:04d} ---', flush=True)
+
+        # Get the index range for the hourly zarr store
+        c_st = cidx * hrly_step_idx
+        c_en = c_st + hrly_step_idx
+
+        if c_st >= hrly_last_idx:
+            con.print(f'[red]ERROR[/]: Starting index, {c_st}, is past the end of available hourly timesteps')
+            break
+
+        if c_en > hrly_last_idx:
+            c_en = hrly_last_idx
+
+        ds_daily = compute_daily(ds_hourly, var_list, st_idx=c_st, en_idx=c_en, chunks=chunk_plan)
+        ds_daily.compute()
+
+        ds_daily = adjust_time(ds_daily, time_adj=adj_val['instant'])
+
+        ds_daily = remove_chunk_encoding(ds_daily)
+
+        # Cumulative variables may be missing the time for the last day at the end of the POR
+        # This shows as NaT in the last time index. This needs to be filled before writing
+        # to the zarr store. The data values for this last day will be NaN.
+        if np.isnat(ds_daily.time.values[-1]):
+            ds_daily.time.values[-1] = ds_daily.time.values[-2] + np.timedelta64(1, 'D')
+
+        # Get the index positions for inserting the chunk in the daily output zarr store
+        daily_st = int(c_st / 24)
+        daily_en = int(c_en / 24)
+        if (daily_en - daily_st) < ds_daily.time.size:
+            con.print(f'    time interval changed from {daily_en - daily_st} to {ds_daily.time.size}')
+            daily_en += 1
+
+        con.print(f'    daily range: {daily_st} ({ds_daily.time.dt.strftime("%Y-%m-%d %H:%M:%S")[0].values}) to '
+                  f'{daily_en} ({ds_daily.time.dt.strftime("%Y-%m-%d %H:%M:%S")[-1].values})'
+                  f'  timesteps: {daily_en-daily_st}')
+
+        # print('    --- write to zarr store', flush=True)
+        # NOTE: Make sure the arrays that are written have the correct chunk sizes or they will be
+        #       corrupted during the write.
+        ds_daily.drop_vars(drop_vars, errors='ignore').to_zarr(config.dst_zarr,
+                                                               region={'time': slice(daily_st, daily_en)})
+
+        con.print(f'    time: {(time.time() - loop_start) / 60.:0.3f} m')
+
+    con.print(f'Runtime: {(time.time() - start_time) / 60.:0.3f} m')
 
 
 def main():
