@@ -1,8 +1,10 @@
-This archive contains the scripts used to process conus404 bias-corrected daily zarr data to the NHGF geospatial-fabric v1.1
+# conus404_ba_daily_gfv1_1
+
+This archive contains the scripts used to process conus404 bias-adjusted daily zarr data to the NHGF geospatial-fabric v1.1
 
 The data was processed using jupyter notebooks on tallgrass
 
-The c404bc data are located here: <some_path>/scratch/conus404/conus404_daily_bc.zarr
+The CONUS404-BA data are located here: <some_path>/scratch/conus404/conus404_daily_bc.zarr
 
 The processed data are located here <some_path>/wbeep/onhm_dev/climate/c404bc
 NOTE paths in the notebooks would need to be adjusted to the locations noted below.

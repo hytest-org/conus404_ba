@@ -102,7 +102,13 @@ def create_empty_zarr(src_zarr: Annotated[Path, Parameter(validator=validators.P
     con.print(f'Write constant variabls: {time.time() - start_time:0.3f} s')
 
 
-def create_crs(ds):
+def create_crs(ds: xr.Dataset) -> xr.Dataset:
+    """Create a dataset with new crs variable derived from the source dataset crs
+
+    :param ds: source dataset
+    :return: dataset with new crs variable
+    """
+
     # Convert the existing crs to a proper CRS and then convert
     # back to a cf-compliant set of attributes
     new_crs_attrs = pyproj.CRS(pyproj.CRS.from_cf(ds.crs.attrs)).to_cf()
@@ -232,7 +238,15 @@ def to_zarr(chunk_index: int,
     con.print(f'  to_zarr: {chunk_index}, elapsed time: {(end_time - start_time) / 60.:0.3f} minutes')
 
 
-def resolve_path(msg: str, path: str):
+def resolve_path(msg: str, path: str) -> Path:
+    """
+    Resolve a path and exit if it does not exist
+
+    :param msg: message to include in error message
+    :param path: path to resolve
+    :return: Resolved path
+    """
+
     try:
         path = Path(path).resolve(strict=True)
     except FileNotFoundError:

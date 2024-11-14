@@ -40,7 +40,7 @@ def compute_daily(ds: xr.Dataset,
                   var_list: List,
                   st_idx: int,
                   en_idx: int,
-                  chunks: Optional[Dict[str, int]] = None):
+                  chunks: Optional[Dict[str, int]] = None) -> xr.Dataset:
     """Compute daily values from a source hourly dataset
 
     :param ds: Source hourly dataset
@@ -48,6 +48,7 @@ def compute_daily(ds: xr.Dataset,
     :param st_idx: Starting index in source hourly dataset
     :param en_idx: Ending index in source hourly dataset
     :param chunks: Dictionary containing chunk sizes
+    :return: dataset of daily values
     """
 
     if chunks is None:
@@ -81,11 +82,12 @@ def compute_daily(ds: xr.Dataset,
         return ds_daily
 
 
-def adjust_time(ds: xr.Dataset, time_adj: int):
-    """Adjust time values after computing daily from hourly to align time boundaries
+def adjust_time(ds: xr.Dataset, time_adj: int) -> xr.Dataset:
+    """Align time boundaries after computing daily values from hourly
 
     :param ds: Dataset to adjust time values
     :param time_adj: Number of seconds to adjust
+    :return: Dataset with adjust time values
     """
 
     # Adjust the time values, pass the original encoding to the new time index
@@ -98,10 +100,11 @@ def adjust_time(ds: xr.Dataset, time_adj: int):
     return ds
 
 
-def remove_chunk_encoding(ds: xr.Dataset):
-    """Remove existing encoding from variables in dataset
+def remove_chunk_encoding(ds: xr.Dataset) -> xr.Dataset:
+    """Remove existing encoding from variables in a dataset
 
     :param ds: Dataset to remove encoding from
+    :return: Dataset with variable chunk encoding removed
     """
 
     # Remove the existing encoding for chunks
