@@ -1,4 +1,5 @@
 import datetime
+import fsspec
 import numpy as np
 import os
 import pandas as pd
@@ -7,10 +8,15 @@ import time
 import xarray as xr
 import zarr
 
+from typing import Dict, List, Optional, Union
 
-def get_accum_types(ds):
+
+def get_accum_types(ds: xr.Dataset) -> dict:
     """
-    Returns dictionary of acummulation types
+    Returns dictionary of variables by acummulation types
+
+    :param ds: Dataset of WRF model output
+    :return: Dictionary of variables by accumulation type
     """
 
     accum_types = {}
@@ -37,7 +43,22 @@ def get_accum_types(ds):
     return accum_types
 
 
-def apply_metadata(ds, rename_dims, rename_vars, remove_attrs, var_metadata):
+def apply_metadata(ds: xr.Dataset,
+                   rename_dims: Dict,
+                   rename_vars: Dict,
+                   remove_attrs: List,
+                   var_metadata: pd.DataFrame) -> xr.Dataset:
+    """
+    Update variables, dimensions, and metadata of a dataset
+
+    :param ds: Dataset to update
+    :param rename_dims: Dictionary of dimensions to rename
+    :param rename_vars: Dictionary of variables to rename
+    :param remove_attrs: Attributes to remove from all variables
+    :param var_metadata: Dataframe of variable metadata to apply
+    :return: Updated xarray dataset
+    """
+
     avail_dims = ds.dims.keys()
     rename_dims_actual = {}
 
@@ -69,10 +90,23 @@ def apply_metadata(ds, rename_dims, rename_vars, remove_attrs, var_metadata):
     return ds
 
 
-def build_hourly_filelist(num_days, c_start, wrf_dir, file_pattern, verify=False):
+def build_hourly_filelist(num_days: int,
+                          c_start: datetime.datetime,
+                          wrf_dir: Union[str, os.PathLike],
+                          file_pattern: str,
+                          verify: bool = False) -> List[str]:
     """
-    Build a list of file paths
+    Build a list of file paths to model output netCDF files that match a pattern for a given number of days
+
+    :param num_days: Number of days of model output files to include
+    :param c_start: Start date for the chunk of model output files
+    :param wrf_dir: Directory where the model output files are stored
+    :param file_pattern: Pattern for the model output file names
+    :param verify: Verify the existence of each file
+    :return: List of file paths to model output netCDF files
     """
+
+    # NOTE: The wrf_dir argument is required by the yaml config file variable file_pattern
 
     job_files = []
 
@@ -111,10 +145,15 @@ def build_hourly_filelist(num_days, c_start, wrf_dir, file_pattern, verify=False
     return job_files
 
 
-def delete_dir(fs, path):
+def delete_dir(fs: fsspec.filesystem,
+               path: Union[str, os.PathLike]):
     """
     Recursively remove directory using fsspec
+
+    :param fs: fsspec filesystem object
+    :param path: Path to directory to remove
     """
+
     try:
         fs.rm(path, recursive=True)
     except FileNotFoundError:
@@ -146,9 +185,12 @@ def get_maxmem_per_thread(client, max_percent=0.7, verbose=False):
     return max_mem
 
 
-def read_metadata(filename):
+def read_metadata(filename: Union[str, os.PathLike]) -> pd.DataFrame:
     """
     Read the metadata information file
+
+    :param filename: Path to the metadata CSV file
+    :return: DataFrame of metadata information
     """
 
     use_cols = ['varname', 'long_name', 'standard_name', 'units', 'coordinates']
@@ -170,8 +212,23 @@ def read_metadata(filename):
     return df
 
 
-def rechunker_wrapper(source_store, target_store, temp_store, chunks=None,
-                      mem=None, consolidated=False, verbose=True):
+def rechunker_wrapper(source_store: xr.Dataset,
+                      target_store: Union[str, os.PathLike],
+                      temp_store: Union[str, os.PathLike],
+                      chunks: Dict[str, int] = None,
+                      mem: Optional[str] = None,
+                      consolidated: bool = False,
+                      verbose: bool = True):
+    """Wrapper to the rechunker.rechunk function
+
+    :param source_store: Source store to rechunk
+    :param target_store: Target store to write the rechunked data
+    :param temp_store: Temporary store for rechunking
+    :param chunks: Dictionary of chunk sizes for each dimension
+    :param mem: Maximum memory to use for rechunking
+    :param consolidated: Consolidate metadata after rechunking
+    :param verbose: Print verbose output
+    """
 
     t1 = time.time()
 

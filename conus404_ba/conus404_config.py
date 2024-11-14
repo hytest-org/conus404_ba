@@ -10,6 +10,7 @@ from typing import Dict, List, Optional, Union, Any
 
 ConfigElem = Union[int, float, str, List[Any], Dict[Any, Any]]
 
+# This dictionary default the valid configuration parameters and their default values
 default_values: Dict[str, ConfigElem] = dict(wrf_dir='',
                                              wrf_file_pat='',
                                              target_dir='',
