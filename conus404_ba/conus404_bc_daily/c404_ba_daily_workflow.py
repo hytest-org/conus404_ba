@@ -35,21 +35,6 @@ con = Console()
 
 app = App(default_parameter=Parameter(negative=()))
 
-var_attrs = dict(T2MAX=dict(coordinates='x y',
-                            grid_mapping='crs',
-                            long_name='Daily maximum temperature at 2 meters',
-                            units='K'),
-                 T2MIN=dict(coordinates='x y',
-                            grid_mapping='crs',
-                            long_name='Daily minimum temperature at 2 meters',
-                            units='K'),
-                 RAIN=dict(coordinates='x y',
-                           grid_mapping='crs',
-                           long_name='Daily accumulated precipitation',
-                           standard_name='precipitation',
-                           units='mm',
-                           integration_length='24-hour accumulation'))
-
 
 def compute_daily(ds: xr.Dataset,
                   var_list: List,
@@ -164,6 +149,21 @@ def create_zarr(config_file: str):
 
     start_time = time.time()
 
+    var_attrs = dict(T2MAX=dict(coordinates='x y',
+                                grid_mapping='crs',
+                                long_name='Daily maximum temperature at 2 meters',
+                                units='K'),
+                     T2MIN=dict(coordinates='x y',
+                                grid_mapping='crs',
+                                long_name='Daily minimum temperature at 2 meters',
+                                units='K'),
+                     RAIN=dict(coordinates='x y',
+                               grid_mapping='crs',
+                               long_name='Daily accumulated precipitation',
+                               standard_name='precipitation',
+                               units='mm',
+                               integration_length='24-hour accumulation'))
+
     ds = xr.open_dataset(config.src_zarr, engine='zarr',
                          backend_kwargs=dict(consolidated=True), chunks={})
 
@@ -225,9 +225,9 @@ def create_zarr(config_file: str):
 @app.command()
 def extend_time(config_file: str,
                 freq: Optional[str] = '1d'):
-    """Extend the time dimension in an existing zarr dataset
+    """Extend the time dimension in an existing daily zarr dataset
 
-    The time extension is done by retrieving the current ending time
+    The time extension is done by retrieving the current end time
     from the hourly zarr dataset
 
     :param config_file: Name of configuration file
@@ -238,7 +238,6 @@ def extend_time(config_file: str,
 
     src_zarr = Path(config.src_zarr).resolve()
     dst_zarr = Path(config.dst_zarr).resolve()
-    # end_date = config.end_date
     dst_filename = f'{dst_zarr}/.zmetadata'
 
     ds_hourly = xr.open_dataset(src_zarr, engine='zarr', backend_kwargs=dict(consolidated=True), chunks={})
