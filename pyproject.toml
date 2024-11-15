@@ -17,21 +17,26 @@ classifiers = ["Development Status :: 3 - Alpha",
 
 dependencies = ["cyclopts",
     "dask",
+    "dask-jobqueue",
     "fsspec",
+    "mypy_extensions",
+    "netcdf4",
     "numcodecs",
     "numpy",
     "pandas",
     "pyproj",
     "rechunker",
     "rich",
+    "ruamel.yaml",
     "xarray",
     "zarr", ]
 
 [project.urls]
 Repository = "https://github.com/hytest-org/conus404_ba.git"
 
-#[project.scripts]
-#convert_params = "pyPRMS.utilities.convert_params:main"
+[project.scripts]
+c404-ba_hourly_workflow = "conus404_ba.conus404_bc_hourly.c404_ba_hourly_workflow:main"
+c404-ba_daily_workflow = "conus404_ba.conus404_bc_daily.c404_ba_daily_workflow:main"
 
 [tool.setuptools]
 include-package-data = false

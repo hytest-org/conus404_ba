@@ -1,4 +1,5 @@
 import datetime
+import fsspec
 import numpy as np
 import os
 import pandas as pd
@@ -7,10 +8,15 @@ import time
 import xarray as xr
 import zarr
 
+from typing import Dict, List, Optional, Union
 
-def get_accum_types(ds):
+
+def get_accum_types(ds: xr.Dataset) -> dict:
     """
-    Returns dictionary of acummulation types
+    Returns dictionary of variables by acummulation types
+
+    :param ds: Dataset of WRF model output
+    :return: Dictionary of variables by accumulation type
     """
 
     accum_types = {}
@@ -37,7 +43,22 @@ def get_accum_types(ds):
     return accum_types
 
 
-def apply_metadata(ds, rename_dims, rename_vars, remove_attrs, var_metadata):
+def apply_metadata(ds: xr.Dataset,
+                   rename_dims: Dict,
+                   rename_vars: Dict,
+                   remove_attrs: List,
+                   var_metadata: pd.DataFrame) -> xr.Dataset:
+    """
+    Update variables, dimensions, and metadata of a dataset
+
+    :param ds: Dataset to update
+    :param rename_dims: Dictionary of dimensions to rename
+    :param rename_vars: Dictionary of variables to rename
+    :param remove_attrs: Attributes to remove from all variables
+    :param var_metadata: Dataframe of variable metadata to apply
+    :return: Updated xarray dataset
+    """
+
     avail_dims = ds.dims.keys()
     rename_dims_actual = {}
 
@@ -49,11 +70,6 @@ def apply_metadata(ds, rename_dims, rename_vars, remove_attrs, var_metadata):
     ds = ds.rename(rename_dims_actual)
     if len(rename_vars) > 0:
         ds = ds.rename_vars(rename_vars)
-
-    ds = ds.assign_coords({'time': ds.XTIME})
-    # 2024-01-22 PAN: Something changed and now XTIME still has to be dropped from the dataset, whereas before it
-    #                 was renamed to 'time'
-    ds = ds.drop_vars(['XTIME'])
 
     # Modify the attributes
     for cvar in ds.variables:
@@ -74,10 +90,24 @@ def apply_metadata(ds, rename_dims, rename_vars, remove_attrs, var_metadata):
     return ds
 
 
-def build_hourly_filelist(num_days, c_start, wrf_dir, file_pattern, verify=False):
+def build_hourly_filelist(num_days: int,
+                          c_start: datetime.datetime,
+                          wrf_dir: Union[str, os.PathLike],
+                          file_pattern: str,
+                          verify: bool = False) -> List[str]:
     """
-    Build a list of file paths
+    Build a list of file paths to model output netCDF files that match a pattern for a given number of days
+
+    :param num_days: Number of days of model output files to include
+    :param c_start: Start date for the chunk of model output files
+    :param wrf_dir: Directory where the model output files are stored
+    :param file_pattern: Pattern for the model output file names
+    :param verify: Verify the existence of each file
+    :return: List of file paths to model output netCDF files
     """
+
+    # NOTE: The wrf_dir argument is required by the yaml config file variable file_pattern
+    # NOTE: The wy_dir variable (below) is required by the yaml config file variable file_pattern
 
     job_files = []
 
@@ -91,8 +121,6 @@ def build_hourly_filelist(num_days, c_start, wrf_dir, file_pattern, verify=False
         for hh in range(24):
             fdate = cdate + datetime.timedelta(hours=hh)
 
-            # 201610010000.LDASIN_DOMAIN1
-            # file_pat = f'{wrf_dir}/{wy_dir}/{fdate.strftime("%Y%m%d%H%M")}.LDASIN_DOMAIN1'
             file_pat = eval(f"f'{file_pattern}'")
 
             if verify:
@@ -116,10 +144,15 @@ def build_hourly_filelist(num_days, c_start, wrf_dir, file_pattern, verify=False
     return job_files
 
 
-def delete_dir(fs, path):
+def delete_dir(fs: fsspec.filesystem,
+               path: Union[str, os.PathLike]):
     """
     Recursively remove directory using fsspec
+
+    :param fs: fsspec filesystem object
+    :param path: Path to directory to remove
     """
+
     try:
         fs.rm(path, recursive=True)
     except FileNotFoundError:
@@ -151,40 +184,24 @@ def get_maxmem_per_thread(client, max_percent=0.7, verbose=False):
     return max_mem
 
 
-def read_metadata(filename):
+def read_metadata(filename: Union[str, os.PathLike]) -> pd.DataFrame:
     """
     Read the metadata information file
+
+    :param filename: Path to the metadata CSV file
+    :return: DataFrame of metadata information
     """
 
-    use_cols = ['varname', 'long_name', 'integration_length', 'description',
-                'notes', 'units', 'scale_factor', 'valid_range', 'flag_values',
-                'flag_meanings', 'coordinates']
-
-    coord_map = {'XLONG XLAT': 'lon lat',
-                 'XLONG XLAT XTIME': 'lon lat',
-                 'XLONG_U XLAT_U': 'lon_u lat_u',
-                 'XLONG_U XLAT_U XTIME': 'lon_u lat_u',
-                 'XLONG_V XLAT_V': 'lon_v lat_v',
-                 'XLONG_V XLAT_V XTIME': 'lon_v lat_v'}
+    use_cols = ['varname', 'long_name', 'standard_name', 'units', 'coordinates']
 
     df = pd.read_csv(filename, sep='\t', index_col='varname', usecols=use_cols)
 
-    # Change the coordinates to match the new lon/lat variable names
-    for kk, vv in coord_map.items():
-        df['coordinates'].mask(df['coordinates'] == kk, vv, inplace=True)
-
     # Add a few empty attributes, in the future these may already exist
-    df['grid_mapping'] = ''
-    df['axis'] = ''
-    df['standard_name'] = ''
+    # df['grid_mapping'] = ''
+    # df['axis'] = ''
 
     # Set grid_mapping attribute for variables with non-empty coordinates attribute
-    df['grid_mapping'].mask(df['coordinates'].notnull(), 'crs', inplace=True)
-
-    # Rename the XTIME variable to time
-    df = df.rename(index={'XTIME': 'time'})
-    df.loc['time', 'axis'] = 'T'
-    df.loc['time', 'standard_name'] = 'time'
+    # df['grid_mapping'].mask(df['coordinates'].notnull(), 'crs', inplace=True)
 
     # Rechunking will crash if units for 'time' is overridden with an error
     # like the following:
@@ -194,8 +211,23 @@ def read_metadata(filename):
     return df
 
 
-def rechunker_wrapper(source_store, target_store, temp_store, chunks=None,
-                      mem=None, consolidated=False, verbose=True):
+def rechunker_wrapper(source_store: xr.Dataset,
+                      target_store: Union[str, os.PathLike],
+                      temp_store: Union[str, os.PathLike],
+                      chunks: Dict[str, int] = None,
+                      mem: Optional[str] = None,
+                      consolidated: bool = False,
+                      verbose: bool = True):
+    """Wrapper to the rechunker.rechunk() function
+
+    :param source_store: Source store to rechunk
+    :param target_store: Target store to write the rechunked data
+    :param temp_store: Temporary store for rechunking
+    :param chunks: Dictionary of chunk sizes for each dimension
+    :param mem: Maximum memory to use for rechunking
+    :param consolidated: Consolidate metadata after rechunking
+    :param verbose: Print verbose output
+    """
 
     t1 = time.time()
 
@@ -243,76 +275,3 @@ def rechunker_wrapper(source_store, target_store, temp_store, chunks=None,
 
     if verbose:
         print(f'    rechunker: {time.time() - t1:0.3f} s')
-
-
-def set_file_path(path1, path2=None):
-    """Helper function to check/set the full path to a file.
-       path1 should include a filename
-       path2 should only be a directory
-    """
-
-    if os.path.isfile(path1):
-        # File exists, use the supplied path
-        file_path = os.path.realpath(path1)
-    else:
-        # File does not exist
-        if path2:
-            file_path = os.path.realpath(f'{path2}/{path1}')
-
-            if os.path.isfile(file_path):
-                # File exists in path2 so append it to the path
-                print(f'Using filepath, {file_path}')
-            else:
-                raise FileNotFoundError(f'File, {path1}, does not exist in {path2}')
-        else:
-            raise FileNotFoundError(f'File, {path1}, does not exist')
-
-    return file_path
-
-
-def set_target_path(path, base_dir=None, verbose=False):
-
-    if os.path.isdir(path):
-        # We're good, use it
-        new_path = os.path.realpath(path)
-        if verbose:
-            print(f'{new_path} exists.')
-    else:
-        # Path is not a directory, does the parent directory exist?
-        pdir = os.path.dirname(path)
-
-        if pdir == '':
-            # There is no parent directory, try using base_dir if it exists
-            if base_dir:
-                # create/use
-                if not os.path.isdir(base_dir):
-                    raise FileNotFoundError(f'Base directory, {base_dir}, does not exist')
-
-                new_path = f'{base_dir}/{path}'
-
-                if os.path.isdir(new_path):
-                    if verbose:
-                        print(f'Using existing target path, {new_path}')
-                else:
-                    os.mkdir(new_path)
-
-                    if verbose:
-                        print(f'Creating target relative to base directory, {new_path}')
-            else:
-                # No base_dir supplied; create target path in current directory
-                new_path = os.path.realpath(path)
-                os.mkdir(new_path)
-
-                if verbose:
-                    print(f'Target path, {new_path}, created')
-        elif os.path.isdir(pdir):
-            # Parent path exists we just need to create the child directory
-            new_path = os.path.realpath(path)
-            os.mkdir(new_path)
-
-            if verbose:
-                print(f'Parent, {pdir}, exists. Created {new_path} directory')
-        else:
-            raise FileNotFoundError(f'Parent, {pdir}, of target path, {path}, does not exist')
-
-    return new_path

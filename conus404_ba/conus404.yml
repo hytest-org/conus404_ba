@@ -1,0 +1,20 @@
+name: conus404
+channels:
+  - conda-forge
+dependencies:
+  - python=3.10
+  - cyclopts
+  - dask
+  - dask-jobqueue
+  - fsspec
+  - mypy_extensions
+  - netcdf4
+  - numcodecs
+  - numpy
+  - pandas
+  - pyproj
+  - rechunker
+  - rich
+  - ruamel.yaml
+  - xarray
+  - zarr
