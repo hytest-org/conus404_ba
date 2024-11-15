@@ -122,13 +122,14 @@ def create_crs(ds: xr.Dataset) -> xr.Dataset:
 def load_wrf_files(num_days: int,
                    st_date: Union[datetime.datetime, datetime.date],
                    file_pat: str,
-                   wrf_dir: Annotated[Path, Parameter(validator=validators.Path(exists=True))]):
+                   wrf_dir: Annotated[Path, Parameter(validator=validators.Path(exists=True))]) -> xr.Dataset:
     """Load WRF model output netCDF files into an xarray dataset
 
-    :param num_days: number of hours in each chunk
+    :param num_days: number of days of hourly files to load
     :param st_date: start date for the chunk
     :param file_pat: file pattern for WRF model output files
     :param wrf_dir: directory containing WRF model output files
+    :return: xarray dataset containing WRF model output
     """
 
     concat_dim = 'time'
@@ -165,6 +166,7 @@ def rechunk_job(chunk_index: int,
     :param max_mem: maximum memory per thread
     :param ds_wrf:
     :param target_dir: directory for target zarr files
+    :param temp_dir: directory for temporary zarr files during rechunking
     :param var_metadata: dataframe containing variable metadata
     :param var_list: list of variables to process
     :param chunk_plan: dictionary containing chunk sizes for rechunking

@@ -107,6 +107,7 @@ def build_hourly_filelist(num_days: int,
     """
 
     # NOTE: The wrf_dir argument is required by the yaml config file variable file_pattern
+    # NOTE: The wy_dir variable (below) is required by the yaml config file variable file_pattern
 
     job_files = []
 
@@ -120,8 +121,6 @@ def build_hourly_filelist(num_days: int,
         for hh in range(24):
             fdate = cdate + datetime.timedelta(hours=hh)
 
-            # 201610010000.LDASIN_DOMAIN1
-            # file_pat = f'{wrf_dir}/{wy_dir}/{fdate.strftime("%Y%m%d%H%M")}.LDASIN_DOMAIN1'
             file_pat = eval(f"f'{file_pattern}'")
 
             if verify:
@@ -219,7 +218,7 @@ def rechunker_wrapper(source_store: xr.Dataset,
                       mem: Optional[str] = None,
                       consolidated: bool = False,
                       verbose: bool = True):
-    """Wrapper to the rechunker.rechunk function
+    """Wrapper to the rechunker.rechunk() function
 
     :param source_store: Source store to rechunk
     :param target_store: Target store to write the rechunked data
