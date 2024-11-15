@@ -11,11 +11,11 @@
 #SBATCH --cpus-per-task=1
 #  #SBATCH --array=10-100:10
 
-# STEP should match the stride in the --array argument in the calling submit_c404-ba_workflow.sh
+# STEP should match the stride in the --array argument in the calling submit_c404-ba_hourly_workflow.sh
 export STEP=1
 export PATH="$PATH:$HOME/miniforge3/bin"
 
 source activate conus404
 
 echo $SLURM_ARRAY_TASK_ID
-c404-ba_hourly_workflow process-wrf --config-file conus404-ba_hourly.yml --chunk-index ${SLURM_ARRAY_TASK_ID}
+c404-ba_daily_workflow process --config-file conus404-ba_daily.yml --chunk-index ${SLURM_ARRAY_TASK_ID}

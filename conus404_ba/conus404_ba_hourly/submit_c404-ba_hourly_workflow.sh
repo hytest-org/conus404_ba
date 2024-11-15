@@ -9,4 +9,4 @@ FIRST_STEP=1399
 LAST_STEP=1438
 #LAST_STEP=2617
 
-sbatch --array=${FIRST_STEP}-${LAST_STEP}:${STEP}%${MAX_JOBS} to_zarr.sbatch
+sbatch --array=${FIRST_STEP}-${LAST_STEP}:${STEP}%${MAX_JOBS} to_hourly_zarr.sbatch
