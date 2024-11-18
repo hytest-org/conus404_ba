@@ -11,8 +11,6 @@
 #SBATCH --cpus-per-task=1
 #  #SBATCH --array=10-100:10
 
-# STEP should match the stride in the --array argument in the calling submit_c404-ba_hourly_workflow.sh
-export STEP=1
 export PATH="$PATH:$HOME/miniforge3/bin"
 
 source activate conus404
