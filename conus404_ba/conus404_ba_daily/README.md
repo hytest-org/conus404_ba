@@ -10,11 +10,11 @@ conus404-ba_daily.yml
 ## Configuration file options
 ```yml
 num_chunks_per_job: 1
-target_dir: /caldera/hovenweep/projects/usgs/water/impd/pnorton/zarr_c404-bc_tmp
+target_dir: <path>/zarr_c404-bc_tmp
 target_pat: target_
-temp_dir: /caldera/hovenweep/projects/usgs/water/impd/pnorton/scratch_c404-bc
-src_zarr: /caldera/hovenweep/projects/usgs/water/impd/pnorton/conus404-bc_hourly_TEST.zarr
-dst_zarr: /caldera/hovenweep/projects/usgs/water/impd/pnorton/conus404-bc_daily_TEST.zarr
+temp_dir: <path>/scratch_c404-bc
+src_zarr: <path>/conus404-bc_hourly_TEST.zarr
+dst_zarr: <path>/conus404-bc_daily_TEST.zarr
 base_date: '1979-10-01 00:00:00'
 end_date: '1979-10-24 23:00:00'
 chunk_plan:

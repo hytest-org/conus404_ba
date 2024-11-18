@@ -19,12 +19,12 @@ var_list.csv
 num_chunks_per_job: 1
 wrf_dir: /caldera/hovenweep/projects/usgs/water/impd/hytest/conus404-tpBiasCorr
 wrf_file_pat: '{wrf_dir}/{wy_dir}/{fdate.strftime("%Y%m%d%H%M")}.LDASIN_DOMAIN1'
-target_dir: /caldera/hovenweep/projects/usgs/water/impd/pnorton/zarr_c404-bc_tmp
+target_dir: <path>/zarr_c404-bc_tmp
 target_pat: target_
-temp_dir: /caldera/hovenweep/projects/usgs/water/impd/pnorton/scratch_c404-bc
-metadata_file: /home/pnorton/hytest/conus404-bc_processing/conus404-ba_hourly_metadata.csv
-vars_file: /home/pnorton/hytest/conus404-bc_processing/var_list.csv
-dst_zarr: /caldera/hovenweep/projects/usgs/water/impd/pnorton/conus404-bc_hourly_TEST.zarr
+temp_dir: <path>/scratch_c404-bc
+metadata_file: /caldera/hovenweep/projects/usgs/water/impd/hytest/working/src_files/conus404-ba_hourly/conus404-ba_hourly_metadata.csv
+vars_file: /caldera/hovenweep/projects/usgs/water/impd/hytest/working/src_files/conus404-ba_hourly/var_list.csv
+dst_zarr: <path>/conus404-bc_hourly_TEST.zarr
 base_date: '1979-10-01 00:00:00'
 end_date: '1979-12-31 23:00:00'
 num_days: 6
