@@ -81,6 +81,7 @@ The `num_chunks_per_job` variable in the configuration file controls how many ch
 ```bash
 c404-ba_hourly_workflow process-wrf --config-file conus404-ba_hourly.yml --chunk-index=0
 ```
+Instead of running `process-wrf` manually many times, the `sh` script `submit_c404-ba_hourly_workflow.sh` (which calls `to_hourly_zarr.sbatch`) can be used to process the wrf output in batch and write the full data set to the zarr store.
 ### Extend the time dimension in an existing zarr dataset
 For the hourly workflow the `end_date` variable in the YAML file is used to indicate the date to extend the dataset to. This process is quite fast because it only updates the metadata for the zarr dataset. After the time dimension is extended then the source data chunks can be processed to fill in the values for the new time entries.
 ```bash
