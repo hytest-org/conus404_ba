@@ -7,6 +7,7 @@ import dask
 import datetime
 import fsspec
 import json
+import math
 import numpy as np
 import pandas as pd
 import pyproj
@@ -37,6 +38,73 @@ pretty.install()
 con = Console()
 
 app = App(default_parameter=Parameter(negative=()))
+
+
+def chunk_index_to_datetime_range(chunk_index: int,
+                                  chunk_plan: Dict[str, int],
+                                  base_date: Union[datetime.datetime, datetime.date]):
+    """Given a chunk index, return the start and end date of the chunk.
+
+    :param chunk_index: Index of the chunk
+    :param chunk_plan: Dictionary of chunk sizes
+    :param base_date: Base date of the time
+
+    :returns: Tuple of start and end date of the chunk
+    """
+
+    num_days = int(chunk_plan['time']) / 24  # number of days per chunk
+    delta = datetime.timedelta(days=num_days)
+
+    st_date = base_date + datetime.timedelta(days=(num_days * chunk_index))
+    en_date = st_date + delta - datetime.timedelta(hours=1)
+
+    return st_date, en_date
+
+
+def datetime64_to_datetime(dt64: np.datetime64) -> datetime.datetime:
+    """Convert a numpy datetime64 object to a datetime object.
+
+    :param dt64: Numpy datetime64 object
+
+    :returns: Datetime object
+    """
+
+    # Derived from: https://www.delftstack.com/howto/numpy/numpy-convert-datetime64/
+    unix_epoch = np.datetime64(0, "s")
+    one_second = np.timedelta64(1, "s")
+    seconds_since_epoch = (dt64 - unix_epoch) / one_second
+
+    return datetime.datetime.utcfromtimestamp(seconds_since_epoch)
+
+
+def datetime_to_chunk_index(check_date: Union[datetime.datetime, datetime.date],
+                            chunk_plan: Dict[str, int],
+                            base_date: Union[datetime.datetime, datetime.date]) -> int:
+    """Given a date, return the chunk index.
+
+    :param check_date: Date to check
+    :param chunk_plan: Dictionary of chunk sizes
+    :param base_date: Base date of the time
+
+    :returns: Index of the time chunk
+    """
+
+    num_days = chunk_plan['time'] / 24  # number of days per chunk
+    delta = datetime.timedelta(days=num_days)
+
+    chunk_index = math.floor((check_date - base_date) / delta)
+    return chunk_index
+
+
+def _get_base_date(da: xr.DataArray) -> datetime.datetime:
+    """Get the base date for a time data array
+
+    :param da: time data array
+
+    :return: base date
+    """
+
+    return datetime.datetime.strptime(da.encoding['units'].removeprefix('hours since '), '%Y-%m-%d %H:%M:%S')
 
 
 def create_empty_zarr(src_zarr: Annotated[Path, Parameter(validator=validators.Path(exists=True))],
@@ -469,6 +537,45 @@ def extend_time(config_file: str,
     ds['time'].encoding.update(save_enc)
 
     ds[['time']].to_zarr(dst_zarr, mode='a')
+
+
+@app.command()
+def info(config_file: str):
+    """Output information about the destination zarr store
+
+    :param config_file: Name of configuration file
+    """
+
+    config = Cfg(config_file)
+
+    # Open the destination zarr
+    ds = xr.open_dataset(config.dst_zarr, engine='zarr', backend_kwargs=dict(consolidated=True), chunks={})
+
+    # Get the base_date and chunk_plan from the destination dataset
+    base_date = datetime.datetime.strptime(config.base_date, '%Y-%m-%d %H:%M:%S')
+    chunk_plan = config.chunk_plan
+
+    con.print(f'base_date: {base_date.strftime("%Y-%m-%d %H:%M:%S")}')
+    con.print(f'{chunk_plan=}')
+
+    first_date = datetime64_to_datetime(ds.time[0].values)
+    last_date = datetime64_to_datetime(ds.time[-1].values)
+
+    first_chunk = datetime_to_chunk_index(first_date, chunk_plan, base_date)
+    last_chunk = datetime_to_chunk_index(last_date, chunk_plan, base_date)
+
+    first_chunk_st, first_chunk_en = chunk_index_to_datetime_range(chunk_index=first_chunk,
+                                                                   chunk_plan=chunk_plan, base_date=base_date)
+    last_chunk_st, last_chunk_en = chunk_index_to_datetime_range(chunk_index=last_chunk,
+                                                                 chunk_plan=chunk_plan, base_date=base_date)
+
+    con.print(f'First date: {first_date.strftime("%Y-%m-%dT%H")}, '
+              f'chunk: {first_chunk} ({first_chunk_st.strftime("%Y-%m-%dT%H")} to {first_chunk_en.strftime("%Y-%m-%dT%H")})')
+    con.print(f'Last date: {last_date.strftime("%Y-%m-%dT%H")}, '
+              f'chunk: {last_chunk} ({last_chunk_st.strftime("%Y-%m-%dT%H")} to {last_chunk_en.strftime("%Y-%m-%dT%H")})')
+
+    if last_date < last_chunk_en:
+        con.print(f'[green]INFO[/]: Last chunk in dataset is a partial chunk')
 
 
 @app.command()
