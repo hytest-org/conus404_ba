@@ -28,7 +28,7 @@ dependencies = ["cyclopts",
     "rechunker",
     "rich",
     "ruamel.yaml",
-    "xarray",
+    "xarray<3.0",
     "zarr", ]
 
 [project.urls]
