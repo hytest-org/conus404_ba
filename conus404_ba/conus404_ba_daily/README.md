@@ -65,7 +65,7 @@ c404-ba_daily_workflow create-zarr --config-file conus404-ba_daily.yml --chunk-i
 ### Process source data in chunks to zarr store
 The `num_chunks_per_job` variable in the configuration file controls how many chunks of model output are processed during the execution of the workflow. If this variable were set to 2 then the `chunk_index` argument would be in steps of 2 (e.g. 0, 2, 4, ...).
 ```bash
-c404-ba_daily_workflow process-wrf --config-file conus404-ba_daily.yml --chunk-index=0
+c404-ba_daily_workflow process --config-file conus404-ba_daily.yml --chunk-index=0
 ```
 ### Extend the time dimension in an existing zarr dataset
 For the hourly workflow the `end_date` variable in the YAML file is used to indicate the date to extend the dataset to. This process is quite fast because it only updates the metadata for the zarr dataset. After the time dimension is extended then the source data chunks can be processed to fill in the values for the new time entries.
