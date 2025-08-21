@@ -670,8 +670,8 @@ def process_wrf(config_file: str,
         # Set the target directory
         target_dir = Path(config.target_dir) / f'{config.target_pat}{cidx:05d}'
         temp_dir = Path(config.temp_dir) / f'tmp_{cidx:05d}'
-        con.print(f'{target_dir=}')
-        con.print(f'{temp_dir=}')
+        # con.print(f'{target_dir=}')
+        # con.print(f'{temp_dir=}')
 
         # Start date is selected based on chunk index
         st_date = base_date + datetime.timedelta(days=num_days * cidx)
