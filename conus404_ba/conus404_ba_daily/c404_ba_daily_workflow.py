@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 
-from cyclopts import App, Parameter   # , validators
+from cyclopts import App, Parameter, Token   # , validators
 from pathlib import Path
 
 import dask
+import datetime
 import json
+import math
 import numpy as np
 import os
 import pandas as pd
@@ -21,7 +23,7 @@ from numcodecs import Zstd
 from dask_jobqueue import SLURMCluster
 from dask.distributed import Client   # , as_completed
 
-from typing import Dict, List, Optional
+from typing import Annotated, Dict, List, Optional, Sequence, Union
 from zarr.convenience import consolidate_metadata
 from zarr.util import NumberEncoder
 
@@ -98,6 +100,43 @@ def adjust_time(ds: xr.Dataset, time_adj: int) -> xr.Dataset:
     ds.time.encoding = save_enc
 
     return ds
+
+
+def conv_datetime(type_, tokens: Sequence[Token]) -> datetime.datetime:
+    """Convert datetime string from commandline to datetime object
+
+    :param type_: type of object to convert to
+    :param tokens: tokens to convert
+
+    :return: datetime object
+    """
+    date_formats = ['%Y-%m-%d']
+
+    for cfmt in date_formats:
+        try:
+            return datetime.datetime.strptime(tokens[0].value, cfmt)
+        except ValueError:
+            continue
+    raise ValueError
+
+
+def datetime_to_chunk_index(check_date: Union[datetime.datetime, datetime.date],
+                            chunk_plan: Dict[str, int],
+                            base_date: Union[datetime.datetime, datetime.date]) -> int:
+    """Given a date, return the chunk index.
+
+    :param check_date: Date to check
+    :param chunk_plan: Dictionary of chunk sizes
+    :param base_date: Base date of the time
+
+    :returns: Index of the time chunk
+    """
+
+    num_days = chunk_plan['time']   # number of days per chunk
+    delta = datetime.timedelta(days=num_days)
+
+    chunk_index = math.floor((check_date - base_date) / delta)
+    return chunk_index
 
 
 def remove_chunk_encoding(ds: xr.Dataset) -> xr.Dataset:
@@ -326,6 +365,28 @@ def extend_time(config_file: str,
     ds['time'].encoding.update(save_enc)
 
     ds[['time']].to_zarr(dst_zarr, mode='a')
+
+
+@app.command()
+def get_chunk_index(check_date: Annotated[datetime.datetime, Parameter(converter=conv_datetime)],
+                    config_file: str):
+    """Output the chunk index for a datetime value
+
+    :param check_date: datetime value to check
+    :param config_file: Name of configuration file
+    """
+
+    config = Cfg(config_file)
+
+    # Open the destination zarr
+    # ds = xr.open_dataset(config.dst_zarr, engine='zarr', backend_kwargs=dict(consolidated=True), chunks={})
+
+    # Get the base_date and chunk_plan from the destination dataset
+    base_date = datetime.datetime.strptime(config.base_date, '%Y-%m-%d %H:%M:%S')
+    chunk_plan = config.chunk_plan
+
+    chunk_index = datetime_to_chunk_index(check_date, chunk_plan, base_date)
+    con.print(f'{check_date.strftime("%Y-%m-%dT%H")} is in chunk {chunk_index}')
 
 
 @app.command()
