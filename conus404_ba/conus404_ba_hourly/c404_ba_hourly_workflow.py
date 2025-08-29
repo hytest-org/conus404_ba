@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from cyclopts import App, Parameter, validators
+from cyclopts import App, Parameter, Token, validators
 from pathlib import Path
 
 import dask
@@ -19,12 +19,15 @@ import zarr.storage
 
 from rich.console import Console
 from rich import pretty
+from rich.padding import Padding
+from rich.table import Table
+from rich.progress import track
 
 from numcodecs import Zstd
 from dask_jobqueue import SLURMCluster
 from dask.distributed import Client   # , as_completed
 
-from typing import Annotated, Dict, List, Optional, Union
+from typing import Annotated, Dict, List, Optional, Sequence, Union
 from zarr.convenience import consolidate_metadata
 from zarr.util import NumberEncoder
 
@@ -59,6 +62,27 @@ def chunk_index_to_datetime_range(chunk_index: int,
     en_date = st_date + delta - datetime.timedelta(hours=1)
 
     return st_date, en_date
+
+
+def conv_datetime(type_, tokens: Sequence[Token]) -> datetime.datetime:
+    """Convert datetime string from commandline to datetime object
+
+    :param type_: type of object to convert to
+    :param tokens: tokens to convert
+
+    :return: datetime object
+    """
+    date_formats = ['%Y-%m-%d:%H',
+                    '%Y-%m-%d %H:%M:%S',
+                    '%Y-%m-%dT%H',
+                    '%Y-%m-%dT%H:%M:%S']
+
+    for cfmt in date_formats:
+        try:
+            return datetime.datetime.strptime(tokens[0].value, cfmt)
+        except ValueError:
+            continue
+    raise ValueError
 
 
 def datetime64_to_datetime(dt64: np.datetime64) -> datetime.datetime:
@@ -218,6 +242,23 @@ def load_wrf_files(num_days: int,
                                engine='netcdf4', compat='override', chunks={})
 
     return ds
+
+
+def ptext(txt: str,
+          style: str = 'none',
+          max_width: int = 40,
+          expand: bool = False) -> Padding:
+    """Returns a padded text object
+
+    :param txt: Text to print
+    :param style: Style for padding characters (e.g. bold)
+    :param max_width: Maximum width of the line
+    :param expand: Expand padding to fit a available width
+    :return: Padded
+    """
+
+    lr_pad = int((max_width - len(txt)) / 2)
+    return Padding(txt, (0, lr_pad), style=style, expand=expand)
 
 
 def rechunk_job(chunk_index: int,
@@ -537,6 +578,28 @@ def extend_time(config_file: str,
     ds['time'].encoding.update(save_enc)
 
     ds[['time']].to_zarr(dst_zarr, mode='a')
+
+
+@app.command()
+def get_chunk_index(check_date: Annotated[datetime.datetime, Parameter(converter=conv_datetime)],
+                    config_file: str):
+    """Output the chunk index for a datetime value
+
+    :param check_date: datetime value to check
+    :param config_file: Name of configuration file
+    """
+
+    config = Cfg(config_file)
+
+    # Open the destination zarr
+    # ds = xr.open_dataset(config.dst_zarr, engine='zarr', backend_kwargs=dict(consolidated=True), chunks={})
+
+    # Get the base_date and chunk_plan from the destination dataset
+    base_date = datetime.datetime.strptime(config.base_date, '%Y-%m-%d %H:%M:%S')
+    chunk_plan = config.chunk_plan
+
+    chunk_index = datetime_to_chunk_index(check_date, chunk_plan, base_date)
+    con.print(f'{check_date.strftime("%Y-%m-%dT%H")} is in chunk {chunk_index}')
 
 
 @app.command()
