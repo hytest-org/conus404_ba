@@ -9,8 +9,11 @@ import fsspec
 import json
 import math
 import numpy as np
+import os
 import pandas as pd
+import platform
 import pyproj
+import sys
 import time
 import warnings
 import xarray as xr
@@ -20,8 +23,8 @@ import zarr.storage
 from rich.console import Console
 from rich import pretty
 from rich.padding import Padding
-from rich.table import Table
-from rich.progress import track
+# from rich.table import Table
+# from rich.progress import track
 
 from numcodecs import Zstd
 from dask_jobqueue import SLURMCluster
@@ -31,6 +34,7 @@ from typing import Annotated, Dict, List, Optional, Sequence, Union
 from zarr.convenience import consolidate_metadata
 from zarr.util import NumberEncoder
 
+from ..version import __version__
 from ..conus404_helpers import (apply_metadata, build_hourly_filelist, delete_dir, get_accum_types, read_metadata,
                                 rechunker_wrapper)
 from ..conus404_config import Cfg
@@ -301,7 +305,7 @@ def rechunk_job(chunk_index: int,
                       chunks=chunk_plan)
 
     end_time = time.time()
-    con.print(f'  rechunker: {chunk_index}, elapsed time: {(end_time - start_time) / 60.:0.3f} minutes')
+    con.print(f'  {chunk_index}: rechunker elapsed time: {(end_time - start_time) / 60.:0.3f} minutes')
 
 
 def to_zarr(chunk_index: int,
@@ -322,8 +326,8 @@ def to_zarr(chunk_index: int,
 
     start_time = time.time()
 
-    start = chunk_index * chunk_plan['time']
-    stop = (chunk_index + 1) * chunk_plan['time']
+    # start = chunk_index * chunk_plan['time']
+    # stop = (chunk_index + 1) * chunk_plan['time']
 
     try:
         ds_src = xr.open_dataset(src_zarr, engine='zarr', mask_and_scale=True, chunks={})
@@ -338,15 +342,15 @@ def to_zarr(chunk_index: int,
     st_time_idx = np.where(dst_time == st_date_src)[0].item()
     en_time_idx = np.where(dst_time == en_date_src)[-1].item() + 1
 
-    con.print(f'  time slice: {start}, {stop} = {stop-start}')
-    con.print(f'  dst time slice: {st_time_idx}, {en_time_idx} = {en_time_idx - st_time_idx}')
+    # con.print(f'  time slice: {start}, {stop} = {stop-start}')
+    # con.print(f'  dst time slice: {st_time_idx}, {en_time_idx} = {en_time_idx - st_time_idx}')
 
     # Drop the constants
     ds_src = ds_src.drop_vars(drop_vars, errors='ignore')
     ds_src.to_zarr(dst_zarr, region={'time': slice(st_time_idx, en_time_idx)})
 
     end_time = time.time()
-    con.print(f'  to_zarr: {chunk_index}, elapsed time: {(end_time - start_time) / 60.:0.3f} minutes')
+    con.print(f'  {chunk_index}: to_zarr elapsed time: {(end_time - start_time) / 60.:0.3f} minutes')
 
 
 def resolve_path(msg: str, path: str) -> Path:
@@ -650,6 +654,7 @@ def process_wrf(config_file: str,
     :param chunk_index: Index of the chunk to process
     """
 
+    start_time_pgm = time.time()
     job_name = f'wrf_rechunk_{chunk_index}'
 
     config = Cfg(config_file)
@@ -661,12 +666,12 @@ def process_wrf(config_file: str,
 
     # temp_dir = Path(config.temp_dir)
 
-    con.print(f'{wrf_dir=}')
+    # con.print(f'{wrf_dir=}')
     # con.print(f'{temp_dir=}')
-    con.print(f'{dst_zarr=}')
-    con.print(f'{metadata_file=}')
-    con.print(f'{vars_file=}')
-    con.print('-'*60)
+    # con.print(f'{dst_zarr=}')
+    # con.print(f'{metadata_file=}')
+    # con.print(f'{vars_file=}')
+    # con.print('-'*60)
 
     chunk_plan = config.chunk_plan
     num_days = config.num_days
@@ -674,16 +679,43 @@ def process_wrf(config_file: str,
     base_date = datetime.datetime.strptime(base_date, '%Y-%m-%d %H:%M:%S')
     delta = datetime.timedelta(days=num_days)
 
-    con.print(base_date)
-
-    con.print(f'{chunk_index=}')
-    con.print(f'base_date={base_date.strftime("%Y-%m-%d %H:%M:%S")}')
-    con.print(f'{num_days=}')
-    con.print('-'*60)
-    con.print(f'{chunk_plan=}')
-    con.print('-'*60)
+    # con.print(base_date)
+    #
+    # con.print(f'{chunk_index=}')
+    # con.print(f'base_date={base_date.strftime("%Y-%m-%d %H:%M:%S")}')
+    # con.print(f'{num_days=}')
+    # con.print('-'*60)
+    # con.print(f'{chunk_plan=}')
+    # con.print('-'*60)
 
     dask.config.set({"array.slicing.split_large_chunks": False})
+
+    con.print(ptext('Settings', style='white on tan', max_width=80, expand=False))
+    con.print(f'[green4]INFO[/]: Start {datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}')
+    con.print(f'[green4]INFO[/]: Command line: [grey39]{" ".join(sys.argv)}[/]')
+    con.print(f'[green4]INFO[/]: Package version: {__version__}')
+    con.print(f'[green4]INFO[/]: Script directory: [grey39]{os.path.dirname(os.path.abspath(__file__))}[/]')
+    con.print(f'[green4]INFO[/]: Python: [grey39]{platform.python_implementation()} ({platform.python_version()})[/]')
+    con.print(f'[green4]INFO[/]: Host: [grey39]{platform.node()}[/]')
+    con.print('-'*80)
+
+    con.print(f'[green4]INFO[/]: SLURM_NODENAME: {os.environ.get("SLURM_NODENAME", "")}')
+    con.print(f'[green4]INFO[/]: SLURM_ARRAY_TASK_ID: {os.environ.get("SLURM_ARRAY_TASK_ID", "")}')
+    con.print(f'[green4]INFO[/]: SLURM_NODE_LIST: {os.environ.get("SLURM_NODE_LIST", "")}')
+    con.print(f'[green4]INFO[/]: Dask temporary directory: {dask.config.get("temporary-directory")}')
+    con.print('-'*80)
+    con.print(f'[green4]INFO[/]: Variable list file: {vars_file}')
+    con.print(f'[green4]INFO[/]: Variable metadata file: {metadata_file}')
+    con.print(f'[green4]INFO[/]: Source WRF netCDF path: {config.wrf_dir}')
+    con.print(f'[green4]INFO[/]: Base date: {base_date.strftime("%Y-%m-%d %H:%M:%S")}')
+    con.print(f'[green4]INFO[/]: Chunk plan: {chunk_plan}')
+    con.print(f'[green4]INFO[/]: Number of days per chunk: {num_days}')
+    con.print(f'[green4]INFO[/]: Chunk index to start processing: {chunk_index}')
+    con.print('f[green4]INFO[/]: Number of chunks to process: {config.num_chunks_per_job}')
+    con.print(f'[green4]INFO[/]: Rechunker temporary base path: {config.temp_dir}')
+    con.print(f'[green4]INFO[/]: Rechunker target base path: {config.target_dir}')
+    con.print(f'[green4]INFO[/]: Destination hourly dataset: {config.dst_zarr}')
+    con.print('='*80)
 
     # cluster = PBSCluster(job_name=job_name,
     #                      queue=config.queue,
@@ -724,7 +756,7 @@ def process_wrf(config_file: str,
     df_vars = pd.read_csv(vars_file)
     var_list = df_vars['variable'].to_list()
     var_list.append('time')
-    con.print(f'Number of variables to process: {len(var_list)}')
+    con.print(f'[green4]INFO[/]: Number of variables to process: {len(var_list)}')
 
     # Read the metadata file for modifications to variable attributes
     var_metadata = read_metadata(metadata_file)
@@ -771,9 +803,11 @@ def process_wrf(config_file: str,
         delete_dir(fs, temp_dir)
 
         end_time = time.time()
-        con.print(f'{cidx}, elapsed time: {(end_time - start_time) / 60.:0.3f} minutes')
+        con.print(f'{cidx}: Total elapsed time: {(end_time - start_time) / 60.:0.3f} minutes')
 
     cluster.scale(0)
+
+    con.print(f'[green4]INFO[/]: Total program runtime: {(time.time() - start_time_pgm) / 60.:0.3f} m')
 
 
 def main():
