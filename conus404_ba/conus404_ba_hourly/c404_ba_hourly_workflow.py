@@ -42,7 +42,7 @@ from ..conus404_config import Cfg
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
 pretty.install()
-con = Console()
+con = Console(record=True)
 
 app = App(default_parameter=Parameter(negative=()))
 
