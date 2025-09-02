@@ -303,6 +303,7 @@ def check_missing(config_file: str):
             con.print(proc_info)
         else:
             con.print('[green4]INFO[/]: No variables contained missing values')
+    con.save_html(f'{datetime.datetime.now().strftime("%Y%m%dT%H%M")}_conus404_check_missing.html')
 
 
 @app.command()
@@ -663,7 +664,7 @@ def process(config_file: str,
         var_list.sort()
         # Can remove either T2D or RAINRATE to limit which variables are computed for daily
         # var_list.remove('T2D')
-        con.print(f'[green4]INFO[/]: Variables to process: {var_list}')
+        con.print(f'[green4]INFO[/]: Variables available in hourly timestep dataset: {var_list}')
 
         # con.print(f'    --- Number of variables: {len(var_list)}')
 
