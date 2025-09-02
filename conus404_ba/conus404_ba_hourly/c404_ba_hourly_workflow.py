@@ -23,8 +23,8 @@ import zarr.storage
 from rich.console import Console
 from rich import pretty
 from rich.padding import Padding
-# from rich.table import Table
-# from rich.progress import track
+from rich.table import Table
+from rich.progress import track
 
 from numcodecs import Zstd
 from dask_jobqueue import SLURMCluster
@@ -372,6 +372,84 @@ def resolve_path(msg: str, path: str) -> Path:
 
 
 @app.command()
+def check_missing(config_file: str):
+    """Check dataset for missing values
+
+    :param config_file: Name of configuration file
+    """
+
+    # con.print(f'HOST: {os.environ.get("HOSTNAME")}')
+    # con.print(f'SLURMD_NODENAME: {os.environ.get("SLURMD_NODENAME")}')
+
+    config = Cfg(config_file)
+
+    # con.print(f'dask tmp directory: {dask.config.get("temporary-directory")}')
+
+    start_time = time.time()
+    workers = 12
+    threads_per = 2
+    dask.config.set({"array.slicing.split_large_chunks": False})
+
+    con.print(ptext('Settings', style='white on tan', max_width=80, expand=False))
+    # start_time = time.time()
+    con.print(f'[green4]INFO[/]: Start {datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}')
+    con.print(f'[green4]INFO[/]: Command line: [grey39]{" ".join(sys.argv)}[/]')
+    con.print(f'[green4]INFO[/]: Package version: {__version__}')
+    con.print(f'[green4]INFO[/]: Script directory: [grey39]{os.path.dirname(os.path.abspath(__file__))}[/]')
+    con.print(f'[green4]INFO[/]: Python: [grey39]{platform.python_implementation()} ({platform.python_version()})[/]')
+    con.print(f'[green4]INFO[/]: Host: [grey39]{platform.node()}[/]')
+    con.print('-'*80)
+
+    con.print(f'[green4]INFO[/]: SLURM_NODENAME: {os.environ.get("SLURM_NODENAME", "")}')
+    con.print(f'[green4]INFO[/]: SLURM_ARRAY_TASK_ID: {os.environ.get("SLURM_ARRAY_TASK_ID", "")}')
+    con.print(f'[green4]INFO[/]: SLURM_NODE_LIST: {os.environ.get("SLURM_NODE_LIST", "")}')
+    con.print(f'[green4]INFO[/]: Dask temporary directory: {dask.config.get("temporary-directory")}')
+    con.print(f'[green4]INFO[/]: Hourly dataset: {config.dst_zarr}')
+    con.print('='*80)
+
+    with Client(n_workers=workers, threads_per_worker=threads_per, memory_limit=None):
+        ds = xr.open_dataset(config.dst_zarr, engine='zarr', backend_kwargs=dict(consolidated=True), chunks={})
+
+        st_yr = ds['time'].dt.year[0].item()
+        en_yr = ds['time'].dt.year[-1].item()
+
+        # varlist = ['RAINRATE', 'T2D', 'LWDOWN', 'PSFC', 'Q2D', 'SWDOWN', 'U2D', 'V2D']
+        varlist = list(ds.data_vars)
+        if 'crs' in varlist:
+            varlist.remove('crs')
+
+        con.print(f'[green4]INFO[/]: Checking for missing values in {len(varlist)} variables: {varlist}')
+        con.print(f'[green4]INFO[/]: Year range: {st_yr} to {en_yr}')
+
+        proc_info = Table(title='[bold]Years with missing values[/]')
+        proc_info.add_column('Variable', justify='left', style='black')
+        proc_info.add_column('Year', justify='left', style='black')
+        proc_info.add_column('Max missing', justify='left', style='red')
+        # proc_info.add_column('Index range', justify='left', style='grey50')
+
+        for cvar in varlist:
+            for cyear in track(range(st_yr, en_yr + 1), description=f'Processing {cvar}'):
+                ds1 = ds[cvar].sel(time=slice(f'{cyear}-01-01', f'{cyear}-12-31'))
+
+                non_nan_count = ds1.count(dim='time').compute()
+                total_timesteps = ds1.sizes['time']
+
+                nan_count = total_timesteps - non_nan_count.astype(int)
+
+                max_missing = nan_count.where(nan_count > 0).max().item()
+                if not np.isnan(max_missing):
+                    proc_info.add_row(cvar, str(cyear), str(max_missing))
+                    # print(f'{cyear}: Max missing values: {max_missing}')
+
+        if len(proc_info.rows) > 0:
+            con.print(proc_info)
+        else:
+            con.print('[green4]INFO[/]: No variables contained missing values')
+
+    con.save_html(f'{datetime.datetime.now().strftime("%Y%m%dT%H%M")}_conus404-pgw-bc_check_missing.html')
+
+
+@app.command()
 def create_zarr(config_file: str, chunk_index: int):
     """Create a zarr store using a single chunk of WRF model output files
 
@@ -646,8 +724,8 @@ def info(config_file: str):
 
 
 @app.command()
-def process_wrf(config_file: str,
-                chunk_index: int):
+def process(config_file: str,
+            chunk_index: int):
     """Rechunk WRF model output files and insert into existing zarr store
 
     :param config_file: Name of configuration file
