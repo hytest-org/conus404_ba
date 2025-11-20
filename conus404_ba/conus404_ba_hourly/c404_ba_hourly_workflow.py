@@ -797,7 +797,7 @@ def process(config_file: str,
     con.print(f'[green4]INFO[/]: Chunk plan: {chunk_plan}')
     con.print(f'[green4]INFO[/]: Number of days per chunk: {num_days}')
     con.print(f'[green4]INFO[/]: Chunk index to start processing: {chunk_index}')
-    con.print('f[green4]INFO[/]: Number of chunks to process: {config.num_chunks_per_job}')
+    con.print(f'[green4]INFO[/]: Number of chunks to process: {config.num_chunks_per_job}')
     con.print(f'[green4]INFO[/]: Rechunker temporary base path: {config.temp_dir}')
     con.print(f'[green4]INFO[/]: Rechunker target base path: {config.target_dir}')
     con.print(f'[green4]INFO[/]: Destination hourly dataset: {config.dst_zarr}')
