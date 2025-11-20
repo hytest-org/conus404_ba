@@ -28,8 +28,8 @@ dependencies = ["cyclopts",
     "rechunker",
     "rich",
     "ruamel.yaml",
-    "xarray<3.0",
-    "zarr", ]
+    "xarray==2025.1.2",
+    "zarr<3.0", ]
 
 [project.urls]
 Repository = "https://github.com/hytest-org/conus404_ba.git"
