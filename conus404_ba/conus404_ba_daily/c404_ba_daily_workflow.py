@@ -511,8 +511,16 @@ def extend_time(config_file: str,
     con.print('  updating time variable in zarr store')
     save_enc = ds['time'].encoding
 
+    # We opened the dataset without decoding time so we need to also
+    # grab the `units` and `calendar` attributes to add to the encoding
+    save_attrs = ds['time'].attrs
+
     ds.coords['time'] = dates
     ds['time'].encoding.update(save_enc)
+
+    for kk, vv in save_attrs.items():
+        if kk in ['units', 'calendar']:
+            ds['time'].encoding[kk] = vv
 
     ds[['time']].to_zarr(dst_zarr, mode='a')
 
