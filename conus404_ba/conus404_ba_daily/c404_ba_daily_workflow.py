@@ -199,6 +199,24 @@ def ptext(txt: str,
     return Padding(txt, (0, lr_pad), style=style, expand=expand)
 
 
+def resolve_path(msg: str, path: str) -> Path:
+    """
+    Resolve a path and exit if it does not exist
+
+    :param msg: message to include in error message
+    :param path: path to resolve
+    :return: Resolved path
+    """
+
+    try:
+        path = Path(path).resolve(strict=True)
+    except FileNotFoundError:
+        con.print(f'[red]{msg}[/]: {path} does not exist')
+        exit()
+
+    return path
+
+
 def remove_chunk_encoding(ds: xr.Dataset) -> xr.Dataset:
     """Remove existing encoding from variables in a dataset
 
@@ -214,6 +232,79 @@ def remove_chunk_encoding(ds: xr.Dataset) -> xr.Dataset:
             pass
 
     return ds
+
+
+@app.command()
+def check_min_max(config_file: str,
+                  variables: Annotated[list[str], Parameter(consume_multiple=True)]):
+    """Get minimum and maximum values from dataset for selected variables
+
+    :param config_file: Name of configuration file
+    :param variables: List of variables to process
+    """
+
+    start_time_pgm = time.time()
+    job_name = f'wrf_check_range'
+
+    config = Cfg(config_file)
+
+    dst_zarr = resolve_path('dst_zarr', config.dst_zarr)
+    ds = xr.open_dataset(dst_zarr, engine='zarr', backend_kwargs=dict(consolidated=True), chunks={})
+
+    con.print(ptext('Settings', style='white on tan', max_width=80, expand=False))
+    con.print(f'[green4]INFO[/]: Start {datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}')
+    con.print(f'[green4]INFO[/]: Command line: [grey39]{" ".join(sys.argv)}[/]')
+    con.print(f'[green4]INFO[/]: Package version: {__version__}')
+    con.print(f'[green4]INFO[/]: Script directory: [grey39]{os.path.dirname(os.path.abspath(__file__))}[/]')
+    con.print(f'[green4]INFO[/]: Python: [grey39]{platform.python_implementation()} ({platform.python_version()})[/]')
+    con.print(f'[green4]INFO[/]: Host: [grey39]{platform.node()}[/]')
+    con.print('-'*80)
+
+    con.print(f'[green4]INFO[/]: SLURM_NODENAME: {os.environ.get("SLURM_NODENAME", "")}')
+    con.print(f'[green4]INFO[/]: SLURM_ARRAY_TASK_ID: {os.environ.get("SLURM_ARRAY_TASK_ID", "")}')
+    con.print(f'[green4]INFO[/]: SLURM_NODE_LIST: {os.environ.get("SLURM_NODE_LIST", "")}')
+    con.print(f'[green4]INFO[/]: Dask temporary directory: {dask.config.get("temporary-directory")}')
+    con.print('-'*80)
+    con.print(f'[green4]INFO[/]: Destination hourly dataset: {config.dst_zarr}')
+    con.print('='*80)
+
+    cluster = SLURMCluster(job_name=job_name,
+                           queue=config.queue,
+                           account=config.account,
+                           interface=config.interface,
+                           cores=config.cores_per_job,    # this is --cpus-per-task
+                           processes=config.processes,    # this is numbers of workers for dask
+                           memory=f'{config.memory_per_job} GiB',   # total amount of memory for job
+                           walltime=config.walltime)
+
+    con.print(cluster.job_script())
+    cluster.scale(jobs=config.max_jobs)
+
+    client = Client(cluster)
+    client.wait_for_workers(config.processes * config.max_jobs)
+
+    st_yr = ds['time'].dt.year[0].item()
+    en_yr = ds['time'].dt.year[-1].item()
+
+    con.print(f'Minimum and maximum values for {st_yr} to {en_yr}')
+    for cvar in variables:
+        o_max = -2000000.0
+        o_min = 2000000.0
+
+        for cyr in range(st_yr, en_yr+1):
+            date_range = slice(f'{cyr}-01-01', f'{cyr}-12-31')
+            ds_sub = ds[cvar].sel(time=date_range)
+            min_val, max_val = dask.compute(ds_sub.min(skipna=False), ds_sub.max(skipna=False))
+            min_val = min_val.item()
+            max_val = max_val.item()
+            o_max = max(max_val, o_max)
+            o_min = min(min_val, o_min)
+
+            con.print(f'{cvar} - {cyr}: {min_val:0.4f} to {max_val:0.4f}')
+        con.print(f'[bold]{cvar}[/]: {o_min}, {o_max}')
+    cluster.scale(0)
+
+    con.print(f'[green4]INFO[/]: Total program runtime: {(time.time() - start_time_pgm) / 60.:0.3f} m')
 
 
 @app.command()
