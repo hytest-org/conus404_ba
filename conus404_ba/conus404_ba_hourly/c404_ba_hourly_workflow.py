@@ -381,7 +381,7 @@ def check_min_max(config_file: str,
     """
 
     start_time_pgm = time.time()
-    job_name = f'wrf_check_range'
+    job_name = f'check_range'
 
     config = Cfg(config_file)
 
@@ -412,7 +412,8 @@ def check_min_max(config_file: str,
                            cores=config.cores_per_job,    # this is --cpus-per-task
                            processes=config.processes,    # this is numbers of workers for dask
                            memory=f'{config.memory_per_job} GiB',   # total amount of memory for job
-                           walltime=config.walltime)
+                           walltime=config.walltime,
+                           job_extra_directives=['--exclusive'])
 
     con.print(cluster.job_script())
     cluster.scale(jobs=config.max_jobs)
@@ -445,10 +446,12 @@ def check_min_max(config_file: str,
 
 
 @app.command()
-def check_missing(config_file: str):
+def check_missing(config_file: str,
+                  variables: Annotated[list[str], Parameter(consume_multiple=True)]):
     """Check dataset for missing values
 
     :param config_file: Name of configuration file
+    :param variables: List of variables to process
     """
 
     # con.print(f'HOST: {os.environ.get("HOSTNAME")}')
@@ -480,45 +483,64 @@ def check_missing(config_file: str):
     con.print(f'[green4]INFO[/]: Hourly dataset: {config.dst_zarr}')
     con.print('='*80)
 
-    with Client(n_workers=workers, threads_per_worker=threads_per, memory_limit=None):
-        ds = xr.open_dataset(config.dst_zarr, engine='zarr', backend_kwargs=dict(consolidated=True), chunks={})
+    job_name = 'check_missing'
 
-        st_yr = ds['time'].dt.year[0].item()
-        en_yr = ds['time'].dt.year[-1].item()
+    cluster = SLURMCluster(job_name=job_name,
+                           queue=config.queue,
+                           account=config.account,
+                           interface=config.interface,
+                           cores=config.cores_per_job,    # this is --cpus-per-task
+                           processes=config.processes,    # this is numbers of workers for dask
+                           memory=f'{config.memory_per_job} GiB',   # total amount of memory for job
+                           walltime=config.walltime,
+                           job_extra_directives=['--exclusive'])
 
-        # varlist = ['RAINRATE', 'T2D', 'LWDOWN', 'PSFC', 'Q2D', 'SWDOWN', 'U2D', 'V2D']
-        varlist = list(ds.data_vars)
-        if 'crs' in varlist:
-            varlist.remove('crs')
+    con.print(cluster.job_script())
+    cluster.scale(jobs=config.max_jobs)
 
-        con.print(f'[green4]INFO[/]: Checking for missing values in {len(varlist)} variables: {varlist}')
-        con.print(f'[green4]INFO[/]: Year range: {st_yr} to {en_yr}')
+    client = Client(cluster)
+    client.wait_for_workers(config.processes * config.max_jobs)
 
-        proc_info = Table(title='[bold]Years with missing values[/]')
-        proc_info.add_column('Variable', justify='left', style='black')
-        proc_info.add_column('Year', justify='left', style='black')
-        proc_info.add_column('Max missing', justify='left', style='red')
-        # proc_info.add_column('Index range', justify='left', style='grey50')
+    # with Client(n_workers=workers, threads_per_worker=threads_per, memory_limit=None):
+    ds = xr.open_dataset(config.dst_zarr, engine='zarr', backend_kwargs=dict(consolidated=True), chunks={})
 
-        for cvar in varlist:
-            for cyear in track(range(st_yr, en_yr + 1), description=f'Processing {cvar}'):
-                ds1 = ds[cvar].sel(time=slice(f'{cyear}-01-01', f'{cyear}-12-31'))
+    st_yr = ds['time'].dt.year[0].item()
+    en_yr = ds['time'].dt.year[-1].item()
 
-                non_nan_count = ds1.count(dim='time').compute()
-                total_timesteps = ds1.sizes['time']
+    # varlist = ['RAINRATE', 'T2D', 'LWDOWN', 'PSFC', 'Q2D', 'SWDOWN', 'U2D', 'V2D']
+    varlist = list(ds.data_vars)
+    if 'crs' in varlist:
+        varlist.remove('crs')
 
-                nan_count = total_timesteps - non_nan_count.astype(int)
+    con.print(f'Checking for missing values in {len(variables)} variables: {variables}')
+    con.print(f'[green4]INFO[/]: Year range: {st_yr} to {en_yr}')
 
-                max_missing = nan_count.where(nan_count > 0).max().item()
-                if not np.isnan(max_missing):
-                    proc_info.add_row(cvar, str(cyear), str(max_missing))
-                    # print(f'{cyear}: Max missing values: {max_missing}')
+    proc_info = Table(title='[bold]Years with missing values[/]')
+    proc_info.add_column('Variable', justify='left', style='black')
+    proc_info.add_column('Year', justify='left', style='black')
+    proc_info.add_column('Max missing', justify='left', style='red')
+    # proc_info.add_column('Index range', justify='left', style='grey50')
 
-        if len(proc_info.rows) > 0:
-            con.print(proc_info)
-        else:
-            con.print('[green4]INFO[/]: No variables contained missing values')
+    for cvar in varlist:
+        for cyear in track(range(st_yr, en_yr + 1), description=f'Processing {cvar}'):
+            ds1 = ds[cvar].sel(time=slice(f'{cyear}-01-01', f'{cyear}-12-31'))
 
+            non_nan_count = ds1.count(dim='time').compute()
+            total_timesteps = ds1.sizes['time']
+
+            nan_count = total_timesteps - non_nan_count.astype(int)
+
+            max_missing = nan_count.where(nan_count > 0).max().item()
+            if not np.isnan(max_missing):
+                proc_info.add_row(cvar, str(cyear), str(max_missing))
+                # print(f'{cyear}: Max missing values: {max_missing}')
+
+    if len(proc_info.rows) > 0:
+        con.print(proc_info)
+    else:
+        con.print('[green4]INFO[/]: No variables contained missing values')
+
+    cluster.scale(0)
     con.save_html(f'{datetime.datetime.now().strftime("%Y%m%dT%H%M")}_conus404-pgw-bc_check_missing.html')
 
 

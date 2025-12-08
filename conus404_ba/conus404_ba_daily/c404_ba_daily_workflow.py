@@ -244,7 +244,7 @@ def check_min_max(config_file: str,
     """
 
     start_time_pgm = time.time()
-    job_name = f'wrf_check_range'
+    job_name = f'check_range'
 
     config = Cfg(config_file)
 
@@ -372,6 +372,7 @@ def check_missing(config_file: str,
     #     varlist.remove('crs')
 
     con.print(f'Checking for missing values in {len(variables)} variables: {variables}')
+    con.print(f'[green4]INFO[/]: Year range: {st_yr} to {en_yr}')
 
     proc_info = Table(title='[bold]Years with missing values[/]')
     proc_info.add_column('Variable', justify='left', style='black')
