@@ -914,7 +914,8 @@ def process(config_file: str,
                            cores=config.cores_per_job,    # this is --cpus-per-task
                            processes=config.processes,    # this is numbers of workers for dask
                            memory=f'{config.memory_per_job} GiB',   # total amount of memory for job
-                           walltime=config.walltime)
+                           walltime=config.walltime,
+                           job_extra_directives=['--exclusive'])
                            # job_cpu=8,   # this appears to override cores, but cores is still a required argument
                            # job_extra_directives=['--nodes=6'],
                            # local_directory='/home/pnorton/hytest/hourly_processing')
